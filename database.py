@@ -81,6 +81,26 @@ class Database:
                     value TEXT NOT NULL
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS promos (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    code TEXT NOT NULL UNIQUE,
+                    amount INTEGER NOT NULL,
+                    max_uses INTEGER NOT NULL DEFAULT 1,
+                    used_count INTEGER NOT NULL DEFAULT 0,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS promo_claims (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    promo_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                    UNIQUE(promo_id, user_id)
+                )
+            """)
             cols = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
             if "daily_notified" not in cols:
                 conn.execute("ALTER TABLE users ADD COLUMN daily_notified INTEGER NOT NULL DEFAULT 0")
@@ -88,6 +108,9 @@ class Database:
                 conn.execute("ALTER TABLE users ADD COLUMN last_weekly TEXT")
             if "weekly_notified" not in cols:
                 conn.execute("ALTER TABLE users ADD COLUMN weekly_notified INTEGER NOT NULL DEFAULT 0")
+            if "max_balance" not in cols:
+                conn.execute("ALTER TABLE users ADD COLUMN max_balance INTEGER NOT NULL DEFAULT 0")
+                conn.execute("UPDATE users SET max_balance = balance WHERE max_balance = 0")
             conn.commit()
 
     # ---------- Пользователи ----------
@@ -171,7 +194,8 @@ class Database:
     def add_balance(self, user_id: int, amount: int, txn_type: str, description: str) -> None:
         with closing(self._connect()) as conn, conn:
             conn.execute(
-                "UPDATE users SET balance = balance + ? WHERE id = ?", (amount, user_id)
+                "UPDATE users SET balance = balance + ?, max_balance = MAX(COALESCE(max_balance, 0), balance + ?) WHERE id = ?",
+                (amount, amount, user_id),
             )
             conn.execute(
                 "INSERT INTO transactions (user_id, amount, type, description) VALUES (?, ?, ?, ?)",
@@ -255,8 +279,9 @@ class Database:
             if row is None or row["last_daily"] == today:
                 return False
             conn.execute(
-                "UPDATE users SET balance = balance + ?, last_daily = ? WHERE id = ?",
-                (amount, today, user_id),
+                "UPDATE users SET balance = balance + ?, last_daily = ?, daily_notified = 0, "
+                "max_balance = MAX(COALESCE(max_balance, 0), balance + ?) WHERE id = ?",
+                (amount, today, amount, user_id),
             )
             conn.execute(
                 "INSERT INTO transactions (user_id, amount, type, description) VALUES (?, ?, ?, ?)",
@@ -273,8 +298,9 @@ class Database:
             if row is None or row["last_weekly"] == week:
                 return False
             conn.execute(
-                "UPDATE users SET balance = balance + ?, last_weekly = ?, weekly_notified = 0 WHERE id = ?",
-                (amount, week, user_id),
+                "UPDATE users SET balance = balance + ?, last_weekly = ?, weekly_notified = 0, "
+                "max_balance = MAX(COALESCE(max_balance, 0), balance + ?) WHERE id = ?",
+                (amount, week, amount, user_id),
             )
             conn.execute(
                 "INSERT INTO transactions (user_id, amount, type, description) VALUES (?, ?, ?, ?)",
@@ -336,6 +362,14 @@ class Database:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def top_max_balance(self, limit: int = 10) -> list[dict]:
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT id, username, first_name, max_balance FROM users ORDER BY max_balance DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
     def top_wins(self, limit: int = 10) -> list[dict]:
         with closing(self._connect()) as conn:
             rows = conn.execute(
@@ -389,6 +423,93 @@ class Database:
                 """,
                 (key, str(value)),
             )
+
+    # ---------- Промокоды ----------
+
+    def create_promo(self, code: str, amount: int, max_uses: int) -> bool:
+        code = (code or "").strip().upper()
+        if not code or amount <= 0 or max_uses < 1:
+            return False
+        with closing(self._connect()) as conn, conn:
+            try:
+                conn.execute(
+                    "INSERT INTO promos (code, amount, max_uses) VALUES (?, ?, ?)",
+                    (code, amount, max_uses),
+                )
+            except sqlite3.IntegrityError:
+                return False
+        return True
+
+    def get_promo(self, code: str) -> dict | None:
+        code = (code or "").strip().upper()
+        if not code:
+            return None
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT * FROM promos WHERE code = ?", (code,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_promo_by_id(self, promo_id: int) -> dict | None:
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT * FROM promos WHERE id = ?", (promo_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_promos(self) -> list[dict]:
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT * FROM promos ORDER BY id DESC"
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def delete_promo(self, promo_id: int) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute("DELETE FROM promo_claims WHERE promo_id = ?", (promo_id,))
+            conn.execute("DELETE FROM promos WHERE id = ?", (promo_id,))
+
+    def toggle_promo(self, promo_id: int, active: bool) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "UPDATE promos SET is_active = ? WHERE id = ?",
+                (1 if active else 0, promo_id),
+            )
+
+    def redeem_promo(self, user_id: int, code: str) -> tuple[str, int]:
+        """Активирует промокод. Возвращает (статус, сумма).
+        Статусы: ok, not_found, inactive, used_up, already."""
+        promo = self.get_promo(code)
+        if not promo:
+            return ("not_found", 0)
+        if not promo["is_active"]:
+            return ("inactive", 0)
+        if promo["used_count"] >= promo["max_uses"]:
+            return ("used_up", 0)
+        with closing(self._connect()) as conn, conn:
+            claimed = conn.execute(
+                "SELECT 1 FROM promo_claims WHERE promo_id = ? AND user_id = ?",
+                (promo["id"], user_id),
+            ).fetchone()
+            if claimed:
+                return ("already", 0)
+            conn.execute(
+                "INSERT INTO promo_claims (promo_id, user_id) VALUES (?, ?)",
+                (promo["id"], user_id),
+            )
+            conn.execute(
+                "UPDATE promos SET used_count = used_count + 1 WHERE id = ?",
+                (promo["id"],),
+            )
+            conn.execute(
+                "UPDATE users SET balance = balance + ?, max_balance = MAX(COALESCE(max_balance, 0), balance + ?) WHERE id = ?",
+                (promo["amount"], promo["amount"], user_id),
+            )
+            conn.execute(
+                "INSERT INTO transactions (user_id, amount, type, description) VALUES (?, ?, ?, ?)",
+                (user_id, promo["amount"], "promo", f"Промокод {promo['code']}"),
+            )
+        return ("ok", promo["amount"])
 
 
 class PostgresDatabase:
@@ -475,6 +596,32 @@ class PostgresDatabase:
             cur.execute(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_notified INTEGER NOT NULL DEFAULT 0"
             )
+            cur.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS max_balance BIGINT NOT NULL DEFAULT 0"
+            )
+            cur.execute(
+                "UPDATE users SET max_balance = balance WHERE max_balance = 0"
+            )
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS promos (
+                    id BIGSERIAL PRIMARY KEY,
+                    code TEXT NOT NULL UNIQUE,
+                    amount BIGINT NOT NULL,
+                    max_uses INTEGER NOT NULL DEFAULT 1,
+                    used_count INTEGER NOT NULL DEFAULT 0,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL DEFAULT (to_char(LOCALTIMESTAMP, 'YYYY-MM-DD HH24:MI:SS'))
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS promo_claims (
+                    id BIGSERIAL PRIMARY KEY,
+                    promo_id BIGINT NOT NULL,
+                    user_id BIGINT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT (to_char(LOCALTIMESTAMP, 'YYYY-MM-DD HH24:MI:SS')),
+                    UNIQUE(promo_id, user_id)
+                )
+            """)
 
     # ---------- Пользователи ----------
 
@@ -559,7 +706,8 @@ class PostgresDatabase:
     def add_balance(self, user_id: int, amount: int, txn_type: str, description: str) -> None:
         with self._cursor() as cur:
             cur.execute(
-                "UPDATE users SET balance = balance + %s WHERE id = %s", (amount, user_id)
+                "UPDATE users SET balance = balance + %s, max_balance = GREATEST(COALESCE(max_balance, 0), balance + %s) WHERE id = %s",
+                (amount, amount, user_id),
             )
             cur.execute(
                 "INSERT INTO transactions (user_id, amount, type, description) VALUES (%s, %s, %s, %s)",
@@ -644,8 +792,9 @@ class PostgresDatabase:
             if row is None or row["last_daily"] == today:
                 return False
             cur.execute(
-                "UPDATE users SET balance = balance + %s, last_daily = %s WHERE id = %s",
-                (amount, today, user_id),
+                "UPDATE users SET balance = balance + %s, last_daily = %s, daily_notified = 0, "
+                "max_balance = GREATEST(COALESCE(max_balance, 0), balance + %s) WHERE id = %s",
+                (amount, today, amount, user_id),
             )
             cur.execute(
                 "INSERT INTO transactions (user_id, amount, type, description) VALUES (%s, %s, %s, %s)",
@@ -661,8 +810,9 @@ class PostgresDatabase:
             if row is None or row["last_weekly"] == week:
                 return False
             cur.execute(
-                "UPDATE users SET balance = balance + %s, last_weekly = %s, weekly_notified = 0 WHERE id = %s",
-                (amount, week, user_id),
+                "UPDATE users SET balance = balance + %s, last_weekly = %s, weekly_notified = 0, "
+                "max_balance = GREATEST(COALESCE(max_balance, 0), balance + %s) WHERE id = %s",
+                (amount, week, amount, user_id),
             )
             cur.execute(
                 "INSERT INTO transactions (user_id, amount, type, description) VALUES (%s, %s, %s, %s)",
@@ -714,6 +864,14 @@ class PostgresDatabase:
         with self._cursor() as cur:
             cur.execute(
                 "SELECT id, username, first_name, balance FROM users ORDER BY balance DESC LIMIT %s",
+                (limit,),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+    def top_max_balance(self, limit: int = 10) -> list[dict]:
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT id, username, first_name, max_balance FROM users ORDER BY max_balance DESC LIMIT %s",
                 (limit,),
             )
             return [dict(r) for r in cur.fetchall()]
@@ -772,6 +930,89 @@ class PostgresDatabase:
                 """,
                 (key, str(value)),
             )
+
+    # ---------- Промокоды ----------
+
+    def create_promo(self, code: str, amount: int, max_uses: int) -> bool:
+        code = (code or "").strip().upper()
+        if not code or amount <= 0 or max_uses < 1:
+            return False
+        with self._cursor() as cur:
+            try:
+                cur.execute(
+                    "INSERT INTO promos (code, amount, max_uses) VALUES (%s, %s, %s)",
+                    (code, amount, max_uses),
+                )
+            except psycopg2.errors.UniqueViolation:
+                return False
+        return True
+
+    def get_promo(self, code: str) -> dict | None:
+        code = (code or "").strip().upper()
+        if not code:
+            return None
+        with self._cursor() as cur:
+            cur.execute("SELECT * FROM promos WHERE code = %s", (code,))
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+    def get_promo_by_id(self, promo_id: int) -> dict | None:
+        with self._cursor() as cur:
+            cur.execute("SELECT * FROM promos WHERE id = %s", (promo_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+    def list_promos(self) -> list[dict]:
+        with self._cursor() as cur:
+            cur.execute("SELECT * FROM promos ORDER BY id DESC")
+            return [dict(r) for r in cur.fetchall()]
+
+    def delete_promo(self, promo_id: int) -> None:
+        with self._cursor() as cur:
+            cur.execute("DELETE FROM promo_claims WHERE promo_id = %s", (promo_id,))
+            cur.execute("DELETE FROM promos WHERE id = %s", (promo_id,))
+
+    def toggle_promo(self, promo_id: int, active: bool) -> None:
+        with self._cursor() as cur:
+            cur.execute(
+                "UPDATE promos SET is_active = %s WHERE id = %s",
+                (1 if active else 0, promo_id),
+            )
+
+    def redeem_promo(self, user_id: int, code: str) -> tuple[str, int]:
+        """Активирует промокод. Возвращает (статус, сумма).
+        Статусы: ok, not_found, inactive, used_up, already."""
+        promo = self.get_promo(code)
+        if not promo:
+            return ("not_found", 0)
+        if not promo["is_active"]:
+            return ("inactive", 0)
+        if promo["used_count"] >= promo["max_uses"]:
+            return ("used_up", 0)
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM promo_claims WHERE promo_id = %s AND user_id = %s",
+                (promo["id"], user_id),
+            )
+            if cur.fetchone():
+                return ("already", 0)
+            cur.execute(
+                "INSERT INTO promo_claims (promo_id, user_id) VALUES (%s, %s)",
+                (promo["id"], user_id),
+            )
+            cur.execute(
+                "UPDATE promos SET used_count = used_count + 1 WHERE id = %s",
+                (promo["id"],),
+            )
+            cur.execute(
+                "UPDATE users SET balance = balance + %s, max_balance = GREATEST(COALESCE(max_balance, 0), balance + %s) WHERE id = %s",
+                (promo["amount"], promo["amount"], user_id),
+            )
+            cur.execute(
+                "INSERT INTO transactions (user_id, amount, type, description) VALUES (%s, %s, %s, %s)",
+                (user_id, promo["amount"], "promo", f"Промокод {promo['code']}"),
+            )
+        return ("ok", promo["amount"])
 
 
 db = PostgresDatabase() if DATABASE_URL else Database()

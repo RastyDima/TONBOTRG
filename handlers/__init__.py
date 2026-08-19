@@ -1,8 +1,9 @@
-from . import admin, economy, games, joker, mines, profile, rating, start
+from . import admin, economy, games, joker, mines, profile, promo, rating, start
 
 
 def register_handlers(dp) -> None:
     for router in (
+        promo.router,
         start.router,
         games.router,
         profile.router,

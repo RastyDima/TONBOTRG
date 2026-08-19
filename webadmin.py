@@ -164,6 +164,7 @@ tbody tr:hover { background:rgba(255,255,255,.03); }
 def _page(title: str, body: str, active: str) -> str:
     tabs = [
         ("players", "👥 Игроки", "/admin"),
+        ("promos", "🎟 Промокоды", "/admin/promos"),
         ("settings", "⚙️ Настройки", "/admin/settings"),
     ]
     nav = "".join(
@@ -343,10 +344,10 @@ async def unblock_user(request: web.Request) -> web.Response:
 
 # ---------- Вкладка «Настройки» ----------
 
-def _field(name: str, label: str, value, step: str, minv: str, maxv: str, desc: str) -> str:
+def _field(name: str, label: str, value, step: str, minv: str, maxv: str, desc: str, itype: str = "number") -> str:
     return f"""<div class="field">
 <label for="{name}">{label}</label>
-<input type="number" step="{step}" min="{minv}" max="{maxv}" name="{name}" id="{name}" value="{value}">
+<input type="{itype}" step="{step}" min="{minv}" max="{maxv}" name="{name}" id="{name}" value="{value}">
 <div class="desc">{desc}</div>
 </div>"""
 
@@ -449,6 +450,102 @@ async def save_settings(request: web.Request) -> web.Response:
     return web.HTTPFound("/admin/settings")
 
 
+# ---------- Промокоды ----------
+
+def _promo_row(p: dict) -> str:
+    status = ('<span class="pill green">активен</span>' if p["is_active"]
+              else '<span class="pill red">неактивен</span>')
+    toggle_label = "⛔ Выключить" if p["is_active"] else "✅ Включить"
+    toggle_val = "0" if p["is_active"] else "1"
+    return f"""<tr>
+<td><b><code>{html.escape(p['code'])}</code></b></td>
+<td class="balance-cell">{format_number(p['amount'])}</td>
+<td>{p['used_count']} / {p['max_uses']}</td>
+<td>{status}</td>
+<td><span class="muted" style="font-size:12px">{p['created_at']}</span></td>
+<td>
+  <form class="amount-form" method="post" action="/admin/promos/toggle">
+    <input type="hidden" name="pid" value="{p['id']}">
+    <input type="hidden" name="active" value="{toggle_val}">
+    <button class="btn btn-ghost btn-sm">{toggle_label}</button>
+  </form>
+  <form class="amount-form" method="post" action="/admin/promos/delete">
+    <input type="hidden" name="pid" value="{p['id']}">
+    <button class="btn btn-danger btn-sm">🗑 Удалить</button>
+  </form>
+</td>
+</tr>"""
+
+
+async def promos_page(request: web.Request) -> web.Response:
+    if not _auth_ok(request):
+        return web.HTTPFound("/admin/login")
+    promos = db.list_promos()
+    body = f"""
+<div class="page-title">🎟 Промокоды</div>
+<div class="page-sub">Игрок вводит код сообщением вида <code>#КОД</code> — и получает монеты. Лимит активаций считается на всех игроков.</div>
+
+<form class="card" method="post" action="/admin/promos/create">
+  <h2>➕ Новый промокод</h2>
+  <p class="hint">В коде только буквы, цифры, _ и - (до 32 символов). Игрок пишет <code>#КОД</code> в чат бота.</p>
+  <div class="settings-grid">
+    <div>{_field("code", "Код", "", "1", "1", "1", "Используйте заглавные буквы/цифры, например HELLO100", itype="text")}</div>
+    <div>{_field("amount", "Сумма монет", 1000, "1", "1", "1000000000000", "Сколько монет получит игрок за активацию.")}</div>
+    <div>{_field("max_uses", "Максимум активаций", 1, "1", "1", "1000000", "Сколько раз всего можно активировать промокод.")}</div>
+  </div>
+  <button class="btn btn-primary">🎟 Создать промокод</button>
+</form>
+
+<div class="card" style="padding:0">
+  <div class="table-wrap"><table>
+  <thead><tr><th>Код</th><th>Сумма</th><th>Активации</th><th>Статус</th><th>Создан</th><th>Действия</th></tr></thead>
+  <tbody>
+  {''.join(_promo_row(p) for p in promos) or '<tr><td colspan="6" style="text-align:center;padding:32px;color:#8a95b3">Пока нет промокодов</td></tr>'}
+  </tbody>
+  </table></div>
+</div>"""
+    return web.Response(text=_page("Промокоды", body, "promos"), content_type="text/html", charset="utf-8")
+
+
+async def create_promo(request: web.Request) -> web.Response:
+    if not _auth_ok(request):
+        return web.HTTPFound("/admin/login")
+    form = await request.post()
+    code = (form.get("code", "") or "").strip()
+    try:
+        amount = int(float((form.get("amount", "") or "").replace(",", ".")))
+        max_uses = int(float((form.get("max_uses", "") or "").replace(",", ".")))
+    except (TypeError, ValueError):
+        return web.HTTPFound("/admin/promos")
+    if not code or len(code) > 32 or not all(
+        ch.isalnum() or ch in "_-" for ch in code
+    ) or not 1 <= amount <= 10 ** 12 or not 1 <= max_uses <= 10 ** 6:
+        return web.HTTPFound("/admin/promos")
+    db.create_promo(code, amount, max_uses)
+    return web.HTTPFound("/admin/promos")
+
+
+async def toggle_promo(request: web.Request) -> web.Response:
+    if not _auth_ok(request):
+        return web.HTTPFound("/admin/login")
+    form = await request.post()
+    pid = form.get("pid", "")
+    active = form.get("active", "1") != "0"
+    if pid.isdigit():
+        db.toggle_promo(int(pid), active)
+    return web.HTTPFound("/admin/promos")
+
+
+async def delete_promo(request: web.Request) -> web.Response:
+    if not _auth_ok(request):
+        return web.HTTPFound("/admin/login")
+    form = await request.post()
+    pid = form.get("pid", "")
+    if pid.isdigit():
+        db.delete_promo(int(pid))
+    return web.HTTPFound("/admin/promos")
+
+
 # ---------- Логин ----------
 
 def _login_form() -> str:
@@ -509,4 +606,8 @@ def register_admin_routes(app: web.Application) -> None:
     app.router.add_post("/admin/unblock", unblock_user)
     app.router.add_get("/admin/settings", settings_page)
     app.router.add_post("/admin/settings", save_settings)
+    app.router.add_get("/admin/promos", promos_page)
+    app.router.add_post("/admin/promos/create", create_promo)
+    app.router.add_post("/admin/promos/toggle", toggle_promo)
+    app.router.add_post("/admin/promos/delete", delete_promo)
     app.router.add_get("/admin/logout", logout)

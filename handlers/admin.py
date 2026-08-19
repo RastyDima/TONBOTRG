@@ -14,12 +14,20 @@ from utils.notify import send as notify_send
 
 router = Router()
 
+PROMO_CODE_RE = r"[A-Za-z0-9_-]{1,32}"
+
 
 class AdminStates(StatesGroup):
     give_user = State()
     give_amount = State()
     block_user = State()
     unblock_user = State()
+
+
+class AdminPromoStates(StatesGroup):
+    code = State()
+    amount = State()
+    max_uses = State()
 
 
 def is_admin(user_id: int) -> bool:
@@ -166,3 +174,150 @@ async def admin_stats(callback: CallbackQuery, state: FSMContext):
         f"💸 Оборот: {format_number(data['tx_volume'])}",
         reply_markup=kb.as_markup(),
     )
+
+
+# ---------- Промокоды ----------
+
+def promos_view() -> tuple[str, object]:
+    promos = db.list_promos()
+    lines = ["🎟 <b>Промокоды</b>\n"]
+    if not promos:
+        lines.append("Пока нет созданных промокодов.")
+    for p in promos:
+        state = "✅" if p["is_active"] else "⛔"
+        lines.append(
+            f"{state} <code>{p['code']}</code> · {format_number(p['amount'])} монет · "
+            f"{p['used_count']}/{p['max_uses']} активаций"
+        )
+    text = "\n".join(lines)
+    kb = InlineKeyboardBuilder()
+    for p in promos:
+        kb.button(text=f"🛠 {p['code']}", callback_data=f"promo_info:{p['id']}")
+    if promos:
+        kb.adjust(1)
+    kb.button(text="➕ Создать промокод", callback_data="admin_promo_create")
+    kb.button(text="◀️ Назад", callback_data="admin")
+    kb.adjust(1)
+    return text, kb.as_markup()
+
+
+@router.callback_query(F.data == "admin_promos", StateFilter("*"))
+async def admin_promos(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.answer()
+    text, kb = promos_view()
+    await callback.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("promo_info:"), StateFilter("*"))
+async def promo_info(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.answer()
+    pid = int(callback.data.split(":", 1)[1])
+    p = db.get_promo_by_id(pid)
+    if not p:
+        await callback.answer("Промокод не найден", show_alert=True)
+        return
+    state_label = "активен" if p["is_active"] else "неактивен"
+    text = (
+        f"🎟 <b>Промокод {p['code']}</b>\n\n"
+        f"💰 Сумма: {format_number(p['amount'])} монет\n"
+        f"🔢 Активаций: {p['used_count']}/{p['max_uses']}\n"
+        f"📌 Статус: {state_label}\n"
+        f"📅 Создан: {p['created_at']}"
+    )
+    kb = InlineKeyboardBuilder()
+    if p["is_active"]:
+        kb.button(text="⛔ Деактивировать", callback_data=f"promo_toggle:{pid}")
+    else:
+        kb.button(text="✅ Активировать", callback_data=f"promo_toggle:{pid}")
+    kb.button(text="🗑 Удалить", callback_data=f"promo_del:{pid}")
+    kb.button(text="◀️ Назад", callback_data="admin_promos")
+    kb.adjust(2)
+    await callback.message.edit_text(text, reply_markup=kb.as_markup())
+
+
+@router.callback_query(F.data.startswith("promo_toggle:"), StateFilter("*"))
+async def promo_toggle(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    pid = int(callback.data.split(":", 1)[1])
+    p = db.get_promo_by_id(pid)
+    if p:
+        db.toggle_promo(pid, not p["is_active"])
+    await callback.answer()
+    text, kb = promos_view()
+    await callback.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith("promo_del:"), StateFilter("*"))
+async def promo_delete(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    pid = int(callback.data.split(":", 1)[1])
+    db.delete_promo(pid)
+    await callback.answer("Промокод удалён", show_alert=True)
+    text, kb = promos_view()
+    await callback.message.edit_text(text, reply_markup=kb)
+
+
+@router.callback_query(F.data == "admin_promo_create", StateFilter("*"))
+async def promo_create_start(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(AdminPromoStates.code)
+    await callback.answer()
+    await callback.message.edit_text(
+        "🎟 <b>Создание промокода</b>\n\n"
+        "Введите код (буквы/цифры, до 32 символов). Игрок будет вводить его как <code>#КОД</code>:",
+        reply_markup=cancel_kb(),
+    )
+
+
+@router.message(AdminPromoStates.code)
+async def promo_create_code(message: Message, state: FSMContext):
+    import re
+
+    code = (message.text or "").strip()
+    if not re.fullmatch(PROMO_CODE_RE, code):
+        await message.answer("❌ Некорректный код. Только буквы, цифры, _ и -, до 32 символов:")
+        return
+    await state.update_data(promo_code=code.upper())
+    await state.set_state(AdminPromoStates.amount)
+    await message.answer("💵 Введите сумму монет за активацию:")
+
+
+@router.message(AdminPromoStates.amount)
+async def promo_create_amount(message: Message, state: FSMContext):
+    try:
+        amount = int((message.text or "").strip().replace(" ", "").replace(",", ""))
+    except ValueError:
+        await message.answer("❌ Некорректная сумма. Введите целое число:")
+        return
+    if amount <= 0 or amount > 10 ** 12:
+        await message.answer("❌ Сумма должна быть больше 0 и не больше 1 000 000 000 000:")
+        return
+    await state.update_data(promo_amount=amount)
+    await state.set_state(AdminPromoStates.max_uses)
+    await message.answer("🔢 Максимум активаций (целое число от 1):")
+
+
+@router.message(AdminPromoStates.max_uses)
+async def promo_create_max_uses(message: Message, state: FSMContext):
+    try:
+        max_uses = int((message.text or "").strip().replace(" ", "").replace(",", ""))
+    except ValueError:
+        await message.answer("❌ Некорректное число. Введите целое число от 1:")
+        return
+    if max_uses < 1 or max_uses > 10 ** 6:
+        await message.answer("❌ Максимум активаций должен быть от 1 до 1 000 000:")
+        return
+    data = await state.get_data()
+    ok = db.create_promo(data["promo_code"], data["promo_amount"], max_uses)
+    await state.clear()
+    if ok:
+        await message.answer(
+            f"✅ Промокод <code>#{data['promo_code']}</code> создан:\n"
+            f"💰 {format_number(data['promo_amount'])} монет · 🔢 {max_uses} активаций"
+        )
+    else:
+        await message.answer(
+            f"❌ Промокод <code>{data['promo_code']}</code> уже существует.",
+            reply_markup=cancel_kb(),
+        )

@@ -79,6 +79,7 @@ TX_LABELS = {
     "bonus": "🎉 Приветственный бонус",
     "transfer_out": "💸 Перевод отправлен",
     "transfer_in": "💸 Перевод получен",
+    "promo": "🎟 Промокод",
 }
 
 
@@ -121,13 +122,16 @@ def history_text(transactions: list) -> str:
 
 
 def rating_text(top: list, mode: str = "balance") -> str:
-    title = "💰 По балансу" if mode == "balance" else "🎯 По победам"
+    if mode == "balance":
+        title = "💰 Максимальный баланс"
+    else:
+        title = "🎯 По победам"
     lines = [f"🏆 <b>Рейтинг</b> — {title}\n"]
     medals = ["🥇", "🥈", "🥉"]
     for i, u in enumerate(top, 1):
         name = html.escape(str(u["first_name"] or u["username"] or f"Игрок {u['id']}"))
         medal = medals[i - 1] if i <= 3 else f"{i}."
-        stat = f"{format_number(u['balance'])} 💰" if mode == "balance" else f"{u['wins']} 🏆"
+        stat = f"{format_number(u['max_balance'])} 💰" if mode == "balance" else f"{u['wins']} 🏆"
         lines.append(f"{medal} {name} — {stat}")
     if not top:
         lines.append("Пока нет данных.")
