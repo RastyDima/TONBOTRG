@@ -108,7 +108,9 @@ async def on_startup(bot: Bot) -> None:
 
 
 async def on_shutdown(bot: Bot) -> None:
-    await bot.delete_webhook(drop_pending_updates=False)
+    # НЕ удаляем webhook при остановке: при перекатке старый инстанс не должен
+    # сносить вебхук, который уже поставил новый (иначе апдейты перестанут ходить).
+    logging.info("Bot shutdown (webhook left intact)")
 
 
 def build_app() -> web.Application:

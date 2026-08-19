@@ -42,6 +42,11 @@ WEBHOOK_PATH = os.getenv("WEBHOOK_PATH", "/webhook")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "ton-bot-secret")
 PORT = int(os.getenv("PORT", "8080"))
 
+# Автовключение webhook на Render: исключает TelegramConflictError (два инстанса
+# не могут одновременно крутить getUpdates) и держит инстанс активным.
+if os.getenv("RENDER", "").lower() == "true" and not WEBHOOK_URL:
+    WEBHOOK_URL = PUBLIC_BASE_URL
+
 # Стартовый баланс и бонусы
 STARTING_BALANCE = 1000
 DAILY_BONUS = 1000
