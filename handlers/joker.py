@@ -5,7 +5,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from database import db
-from games.joker import BUTTONS, JOKER_LEVELS, JokerGame
+from games.joker import BUTTONS, JokerGame, get_joker_levels
 from keyboards.common import back_button, cancel_kb
 from utils.game_registry import (
     cancel_game,
@@ -33,8 +33,9 @@ class JokerStates(StatesGroup):
 
 def levels_kb():
     kb = InlineKeyboardBuilder()
+    levels = get_joker_levels()
     for lvl in range(1, 3):
-        cfg = JOKER_LEVELS[lvl]
+        cfg = levels[lvl]
         kb.button(
             text=f"{lvl} · 💀 {cfg['skulls']} · ×{cfg['mult']} за дверь",
             callback_data=f"joker:{lvl}",
@@ -114,7 +115,7 @@ async def joker_level_menu(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("joker:"))
 async def joker_choose_level(callback: CallbackQuery, state: FSMContext):
     level = int(callback.data.split(":", 1)[1])
-    cfg = JOKER_LEVELS[level]
+    cfg = get_joker_levels()[level]
     bet = get_pending_bet(callback.from_user.id)
     if bet is not None:
         await state.clear()

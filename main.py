@@ -12,6 +12,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from config import BOT_TOKEN, PORT, WEBHOOK_PATH, WEBHOOK_SECRET, WEBHOOK_URL
 from database import db
 from handlers import register_handlers
+from webadmin import register_admin_routes
 
 logging.basicConfig(level=logging.INFO)
 
@@ -61,6 +62,7 @@ def build_app() -> web.Application:
         return web.Response(text="OK")
 
     app.router.add_get("/health", health)
+    register_admin_routes(app)
     setup_application(app, dp)
     return app
 
@@ -89,6 +91,7 @@ async def main() -> None:
             return web.Response(text="OK")
 
         app.router.add_get("/health", health)
+        register_admin_routes(app)
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, host="0.0.0.0", port=PORT)

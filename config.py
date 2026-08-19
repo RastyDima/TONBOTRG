@@ -16,6 +16,10 @@ DATABASE_PATH = os.getenv("DATABASE_PATH", str(BASE_DIR / "data" / "bot.db"))
 # URL PostgreSQL — если задан, используется Postgres, иначе локальный SQLite
 DATABASE_URL = os.getenv("DATABASE_URL") or None
 
+# Логин/пароль веб-админки
+ADMIN_PANEL_USER = os.getenv("ADMIN_PANEL_USER", "admin")
+ADMIN_PANEL_PASSWORD = os.getenv("ADMIN_PANEL_PASSWORD", "admin123")
+
 # Настройки вебхука (для облачного хостинга). Если WEBHOOK_URL не задан — бот работает в polling-режиме.
 WEBHOOK_URL = os.getenv("WEBHOOK_URL") or None
 WEBHOOK_PATH = os.getenv("WEBHOOK_PATH", "/webhook")

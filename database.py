@@ -69,6 +69,12 @@ class Database:
                     created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+            """)
             conn.commit()
 
     # ---------- Пользователи ----------
@@ -110,6 +116,30 @@ class Database:
                 "SELECT * FROM users WHERE lower(username) = ? LIMIT 1", (username,)
             ).fetchone()
             return dict(row) if row else None
+
+    def search_users(self, query: str, limit: int = 50) -> list[dict]:
+        """Поиск игроков по ID, имени или username (для веб-админки)."""
+        query = (query or "").strip().lstrip("@")
+        with closing(self._connect()) as conn:
+            if not query:
+                rows = conn.execute(
+                    "SELECT * FROM users ORDER BY balance DESC LIMIT ?", (limit,)
+                ).fetchall()
+            elif query.isdigit():
+                row = conn.execute(
+                    "SELECT * FROM users WHERE id = ? LIMIT 1", (int(query),)
+                ).fetchone()
+                rows = [row] if row else []
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM users
+                    WHERE lower(username) LIKE ? OR lower(first_name) LIKE ?
+                    ORDER BY balance DESC LIMIT ?
+                    """,
+                    (f"%{query.lower()}%", f"%{query.lower()}%", limit),
+                ).fetchall()
+            return [dict(r) for r in rows]
 
     def is_user_blocked(self, user_id: int) -> bool:
         with closing(self._connect()) as conn:
@@ -266,6 +296,25 @@ class Database:
                 "tx_volume": tx["s"],
             }
 
+    # ---------- Настройки ----------
+
+    def get_setting(self, key: str, default) -> str:
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?", (key,)
+            ).fetchone()
+            return row["value"] if row else default
+
+    def set_setting(self, key: str, value) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                """
+                INSERT INTO settings (key, value) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (key, str(value)),
+            )
+
 
 class PostgresDatabase:
     """Слой работы с PostgreSQL (для облачного хостинга)."""
@@ -338,6 +387,12 @@ class PostgresDatabase:
                     created_at TEXT NOT NULL DEFAULT (to_char(LOCALTIMESTAMP, 'YYYY-MM-DD HH24:MI:SS'))
                 )
             """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+            """)
 
     # ---------- Пользователи ----------
 
@@ -382,6 +437,29 @@ class PostgresDatabase:
             )
             row = cur.fetchone()
             return dict(row) if row else None
+
+    def search_users(self, query: str, limit: int = 50) -> list[dict]:
+        """Поиск игроков по ID, имени или username (для веб-админки)."""
+        query = (query or "").strip().lstrip("@")
+        with self._cursor() as cur:
+            if not query:
+                cur.execute(
+                    "SELECT * FROM users ORDER BY balance DESC LIMIT %s", (limit,)
+                )
+                return [dict(r) for r in cur.fetchall()]
+            if query.isdigit():
+                cur.execute("SELECT * FROM users WHERE id = %s LIMIT 1", (int(query),))
+                row = cur.fetchone()
+                return [dict(row)] if row else []
+            cur.execute(
+                """
+                SELECT * FROM users
+                WHERE lower(username) LIKE %s OR lower(first_name) LIKE %s
+                ORDER BY balance DESC LIMIT %s
+                """,
+                (f"%{query.lower()}%", f"%{query.lower()}%", limit),
+            )
+            return [dict(r) for r in cur.fetchall()]
 
     def is_user_blocked(self, user_id: int) -> bool:
         with self._cursor() as cur:
@@ -539,6 +617,24 @@ class PostgresDatabase:
                 "tx_count": tx["c"],
                 "tx_volume": tx["s"],
             }
+
+    # ---------- Настройки ----------
+
+    def get_setting(self, key: str, default) -> str:
+        with self._cursor() as cur:
+            cur.execute("SELECT value FROM settings WHERE key = %s", (key,))
+            row = cur.fetchone()
+            return row["value"] if row else default
+
+    def set_setting(self, key: str, value) -> None:
+        with self._cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO settings (key, value) VALUES (%s, %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                """,
+                (key, str(value)),
+            )
 
 
 db = PostgresDatabase() if DATABASE_URL else Database()

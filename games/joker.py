@@ -1,7 +1,9 @@
 import random
 
-# Уровни риска: скелетов в трёх дверях и множитель за каждую удачную дверь
-JOKER_LEVELS = {
+from database import db
+
+# Уровни риска: скелетов в трёх дверях (настраиваются множители через админку)
+DEFAULT_JOKER_LEVELS = {
     1: {"skulls": 1, "mult": 1.6},
     2: {"skulls": 2, "mult": 3.5},
 }
@@ -9,13 +11,28 @@ JOKER_LEVELS = {
 BUTTONS = 3
 
 
+def get_joker_levels() -> dict:
+    """Читает множители уровней из настроек БД (с запасом на отсутствие значений)."""
+    levels = {}
+    for lvl, cfg in DEFAULT_JOKER_LEVELS.items():
+        key = f"joker_mult_{lvl}"
+        raw = db.get_setting(key, None)
+        try:
+            mult = float(raw) if raw is not None else cfg["mult"]
+        except (TypeError, ValueError):
+            mult = cfg["mult"]
+        levels[lvl] = {"skulls": cfg["skulls"], "mult": mult}
+    return levels
+
+
 class JokerGame:
     """Игра «Джокер»: в каждом раунде из трёх дверей в скрыты 💀 скелеты."""
 
     def __init__(self, user_id: int, bet: int, level: int):
-        if level not in JOKER_LEVELS:
+        levels = get_joker_levels()
+        if level not in levels:
             raise ValueError("Некорректный уровень риска")
-        cfg = JOKER_LEVELS[level]
+        cfg = levels[level]
         self.type = "joker"
         self.user_id = user_id
         self.bet = bet

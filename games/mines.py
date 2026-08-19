@@ -1,12 +1,20 @@
 import random
 from math import comb
 
+from database import db
+
 FIELD_SIZE = 25
 ROWS = 5
 COLS = 5
 MIN_MINES = 1
 MAX_MINES = 10
-HOUSE_EDGE = 0.97
+
+
+def get_house_edge() -> float:
+    try:
+        return float(db.get_setting("mines_house_edge", 0.97))
+    except (TypeError, ValueError):
+        return 0.97
 
 
 class MinesGame:
@@ -42,7 +50,7 @@ class MinesGame:
         if k == 0:
             return 1.0
         p = comb(FIELD_SIZE - k, self.mines) / comb(FIELD_SIZE, self.mines)
-        return round(HOUSE_EDGE / p, 2)
+        return round(get_house_edge() / p, 2)
 
     @property
     def payout(self) -> int:
