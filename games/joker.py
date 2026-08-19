@@ -1,0 +1,69 @@
+import random
+
+# Уровни риска: скелетов в трёх дверях и множитель за каждую удачную дверь
+JOKER_LEVELS = {
+    1: {"skulls": 1, "mult": 1.6},
+    2: {"skulls": 2, "mult": 3.5},
+}
+
+BUTTONS = 3
+
+
+class JokerGame:
+    """Игра «Джокер»: в каждом раунде из трёх дверей в скрыты 💀 скелеты."""
+
+    def __init__(self, user_id: int, bet: int, level: int):
+        if level not in JOKER_LEVELS:
+            raise ValueError("Некорректный уровень риска")
+        cfg = JOKER_LEVELS[level]
+        self.type = "joker"
+        self.user_id = user_id
+        self.bet = bet
+        self.level = level
+        self.skulls = cfg["skulls"]
+        self.round_multiplier = cfg["mult"]
+        self.multiplier = 1.0
+        self.round = 1
+        self.skull_pos = set(random.sample(range(BUTTONS), cfg["skulls"]))
+        self.last_pick_pos = None
+        self.rounds = []
+        self.lost = False
+        self.cashed_out = False
+
+    @property
+    def is_over(self) -> bool:
+        return self.lost or self.cashed_out
+
+    @property
+    def payout(self) -> int:
+        return int(self.bet * self.multiplier)
+
+    def pick(self, pos: int) -> str:
+        """Открывает дверь pos (0..BUTTONS-1). Возвращает 'safe' или 'skull'."""
+        self.last_pick_pos = pos
+        skull = pos in self.skull_pos
+        self.rounds.append(
+            {"skull_pos": set(self.skull_pos), "picked": pos, "result": "skull" if skull else "safe"}
+        )
+        if skull:
+            self.lost = True
+            return "skull"
+        self.multiplier *= self.round_multiplier
+        self.round += 1
+        self.skull_pos = set(random.sample(range(BUTTONS), self.skulls))
+        return "safe"
+
+    def reveal_line(self, rd: dict) -> str:
+        """Открытые двери раунда: скелеты 💀, выбранная ✅, остальные ⬜."""
+        parts = []
+        for i in range(BUTTONS):
+            if i in rd["skull_pos"]:
+                parts.append("💀")
+            elif i == rd["picked"]:
+                parts.append("✅")
+            else:
+                parts.append("⬜")
+        return "  ".join(parts)
+
+    def hidden_line(self) -> str:
+        return "  ".join("❓" for _ in range(BUTTONS))
