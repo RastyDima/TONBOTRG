@@ -119,6 +119,11 @@ async def joker_choose_level(callback: CallbackQuery, state: FSMContext):
     bet = get_pending_bet(callback.from_user.id)
     if bet is not None:
         await state.clear()
+        if registry.is_active(callback.from_user.id):
+            await callback.answer(
+                "⚠️ Сначала завершите текущую игру!", show_alert=True
+            )
+            return
         user = db.get_user(callback.from_user.id)
         if not user or bet > user["balance"]:
             await callback.answer("❌ Недостаточно средств.", show_alert=True)
@@ -149,9 +154,11 @@ async def joker_choose_level(callback: CallbackQuery, state: FSMContext):
 async def quick_joker_start(message: Message, state: FSMContext):
     info = quick_command(message.text, JOKER_COMMANDS)
     bet = info["bet"]
+    if registry.is_active(message.from_user.id):
+        await message.answer("⚠️ Сначала завершите текущую игру (кнопка «Отмена» или /cancel).")
+        return
     if bet is None:
         await state.clear()
-        cancel_game(message.from_user.id)
         clear_pending_bet(message.from_user.id)
         await message.answer(
             "🃏 <b>Джокер</b>\nБыстрый старт: <code>дж 30000</code> — начнёт игру со ставкой.\n\n"
@@ -167,7 +174,6 @@ async def quick_joker_start(message: Message, state: FSMContext):
         await message.answer(f"❌ Недостаточно средств. Баланс: {format_number(user['balance'])}")
         return
     await state.clear()
-    cancel_game(message.from_user.id)
     set_pending_bet(message.from_user.id, bet)
     await message.answer(
         f"🃏 <b>Джокер</b> · Ставка: <b>{format_number(bet)}</b>\n"
@@ -189,6 +195,9 @@ async def joker_process_bet(message: Message, state: FSMContext):
     user = db.get_user(message.from_user.id)
     if not user:
         await message.answer("Сначала нажмите /start")
+        return
+    if registry.is_active(message.from_user.id):
+        await message.answer("⚠️ Сначала завершите текущую игру (кнопка «Отмена» или /cancel).")
         return
     if bet > user["balance"]:
         await message.answer(f"❌ Недостаточно средств. Баланс: {format_number(user['balance'])}")

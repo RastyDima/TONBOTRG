@@ -101,23 +101,24 @@ class BlockedUserMiddleware(BaseMiddleware):
         return await handler(event, data)
 
 
-async def on_startup(bot: Bot) -> None:
-    webhook_url = WEBHOOK_URL + WEBHOOK_PATH
-    await bot.set_webhook(webhook_url, secret_token=WEBHOOK_SECRET, drop_pending_updates=True)
-    logging.info("Webhook set to %s", webhook_url)
-
-
-async def on_shutdown(bot: Bot) -> None:
-    # НЕ удаляем webhook при остановке: при перекатке старый инстанс не должен
-    # сносить вебхук, который уже поставил новый (иначе апдейты перестанут ходить).
-    logging.info("Bot shutdown (webhook left intact)")
-
-
 def build_app() -> web.Application:
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher(storage=MemoryStorage())
     dp.update.middleware(BlockedUserMiddleware())
     register_handlers(dp)
+
+    async def on_startup(*args, **kwargs) -> None:
+        # aiogram вызывает startup через emit_startup(**workflow_data), где нет `bot`;
+        # поэтому используем замыкание над локальным bot.
+        webhook_url = WEBHOOK_URL + WEBHOOK_PATH
+        await bot.set_webhook(webhook_url, secret_token=WEBHOOK_SECRET, drop_pending_updates=True)
+        logging.info("Webhook set to %s", webhook_url)
+
+    async def on_shutdown(*args, **kwargs) -> None:
+        # НЕ удаляем webhook при остановке: при перекатке старый инстанс не должен
+        # сносить вебхук, который уже поставил новый (иначе апдейты перестанут ходить).
+        logging.info("Bot shutdown (webhook left intact)")
+
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
 
