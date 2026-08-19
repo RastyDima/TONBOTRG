@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from aiohttp import web
+from aiohttp import ClientSession, web
 from aiogram import BaseMiddleware, Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -10,7 +10,7 @@ from aiogram.types import CallbackQuery, Message, Update
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
-from config import BOT_TOKEN, PORT, WEBHOOK_PATH, WEBHOOK_SECRET, WEBHOOK_URL
+from config import BOT_TOKEN, PORT, PUBLIC_BASE_URL, WEBHOOK_PATH, WEBHOOK_SECRET, WEBHOOK_URL
 from database import db
 from handlers import register_handlers
 from utils import notify
@@ -20,6 +20,7 @@ from webadmin import register_admin_routes
 logging.basicConfig(level=logging.INFO)
 
 REMINDER_INTERVAL = 30 * 60  # секунд
+HEARTBEAT_INTERVAL = 4 * 60  # секунд, меньше порога простоя Render (~15 мин)
 
 
 def _bonus_kb(action: str):
@@ -58,6 +59,31 @@ async def reminder_loop() -> None:
 
 def start_reminder_loop() -> asyncio.Task:
     return asyncio.create_task(reminder_loop())
+
+
+async def heartbeat_loop() -> None:
+    """Каждые 4 минуты пингует собственный /health через публичный URL.
+
+    Создаёт постоянный входящий трафик, поэтому бесплатный Render не усыпляет
+    инстанс (порог простоя — 15 минут без запросов).
+    """
+    if not PUBLIC_BASE_URL:
+        return
+    url = PUBLIC_BASE_URL.rstrip("/") + "/health"
+    logging.info("Heartbeat: keeping %s awake (every %ds)", url, HEARTBEAT_INTERVAL)
+    while True:
+        try:
+            async with ClientSession() as session:
+                async with session.get(url, timeout=15) as resp:
+                    if resp.status != 200:
+                        logging.warning("Heartbeat: status %s", resp.status)
+        except Exception:  # noqa: BLE001
+            logging.warning("Heartbeat: ping to %s failed", url, exc_info=True)
+        await asyncio.sleep(HEARTBEAT_INTERVAL)
+
+
+def start_heartbeat() -> asyncio.Task:
+    return asyncio.create_task(heartbeat_loop())
 
 
 class BlockedUserMiddleware(BaseMiddleware):
@@ -107,11 +133,13 @@ def build_app() -> web.Application:
     async def start_background(app) -> None:
         notify.set_bot(bot)
         app["reminder_task"] = start_reminder_loop()
+        app["heartbeat_task"] = start_heartbeat()
 
     async def stop_background(app) -> None:
-        task = app.get("reminder_task")
-        if task:
-            task.cancel()
+        for key in ("reminder_task", "heartbeat_task"):
+            task = app.get(key)
+            if task:
+                task.cancel()
 
     app.on_startup.append(start_background)
     app.on_cleanup.append(stop_background)
@@ -139,6 +167,7 @@ async def main() -> None:
         register_handlers(dp)
         notify.set_bot(bot)
         reminder_task = start_reminder_loop()
+        heartbeat_task = start_heartbeat()
 
         # Открываем порт для Render (health check), чтобы деплой считался живым,
         # а старый инстанс не конфликтовал с новым.
@@ -160,6 +189,7 @@ async def main() -> None:
             await dp.start_polling(bot)
         finally:
             reminder_task.cancel()
+            heartbeat_task.cancel()
 
 
 if __name__ == "__main__":

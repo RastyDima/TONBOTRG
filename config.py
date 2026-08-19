@@ -22,6 +22,16 @@ DATABASE_URL = os.getenv("DATABASE_URL") or None
 if not DATABASE_URL and os.getenv("RENDER", "").lower() == "true":
     DATABASE_URL = "postgresql://u_tenant_18451181:qw654321rty1@db.armordb.org:6432/db_tenant_9eb5a222"
 
+# Публичный URL сервиса для само-пинга /health (нужен, чтобы бесплатный Render
+# не усыплял инстанс из-за 15 минут без входящих запросов).
+if os.getenv("RENDER", "").lower() == "true":
+    PUBLIC_BASE_URL = (
+        os.getenv("RENDER_EXTERNAL_URL")
+        or f"https://{os.getenv('RENDER_SERVICE_NAME', 'tonbotrg')}.onrender.com"
+    )
+else:
+    PUBLIC_BASE_URL = ""
+
 # Логин/пароль веб-админки
 ADMIN_PANEL_USER = os.getenv("ADMIN_PANEL_USER", "admin")
 ADMIN_PANEL_PASSWORD = os.getenv("ADMIN_PANEL_PASSWORD", "admin123")
