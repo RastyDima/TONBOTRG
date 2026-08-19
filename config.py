@@ -13,8 +13,14 @@ ADMIN_IDS = [
 
 DATABASE_PATH = os.getenv("DATABASE_PATH", str(BASE_DIR / "data" / "bot.db"))
 
-# URL PostgreSQL — если задан, используется Postgres, иначе локальный SQLite
+# URL PostgreSQL — если задан, используется Postgres, иначе локальный SQLite.
 DATABASE_URL = os.getenv("DATABASE_URL") or None
+
+# На Render (устанавливает RENDER=true) всегда используем прод-БД: иначе бот
+# молча работает на SQLite во временном диске контейнера и все данные (бонусы,
+# балансы, промокоды) теряются при каждом перезапуске.
+if not DATABASE_URL and os.getenv("RENDER", "").lower() == "true":
+    DATABASE_URL = "postgresql://u_tenant_18451181:qw654321rty1@db.armordb.org:6432/db_tenant_9eb5a222"
 
 # Логин/пароль веб-админки
 ADMIN_PANEL_USER = os.getenv("ADMIN_PANEL_USER", "admin")

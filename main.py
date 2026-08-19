@@ -123,6 +123,7 @@ def build_app() -> web.Application:
 
 async def main() -> None:
     db.init_db()
+    logging.info("Database backend: %s", type(db).__name__)
     if WEBHOOK_URL:
         app = build_app()
         runner = web.AppRunner(app)
