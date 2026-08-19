@@ -13,7 +13,8 @@ from config import ADMIN_PANEL_PASSWORD, ADMIN_PANEL_USER
 from database import db
 from games.joker import get_joker_levels
 from games.mines import get_house_edge
-from utils.helpers import format_number
+from utils.helpers import format_number, get_daily_bonus, get_weekly_bonus
+from utils.notify import send as notify_send
 
 SESSION_TTL = 60 * 60 * 12  # 12 часов
 _sessions: dict[str, float] = {}  # token -> expires_at
@@ -304,6 +305,19 @@ async def give_coins(request: web.Request) -> web.Response:
     if form.get("neg"):
         amount = -amount
     db.add_balance(uid, amount, "admin", "Веб-админка: изменение баланса")
+    latest = db.get_user(uid)
+    if amount > 0:
+        await notify_send(
+            uid,
+            f"💰 <b>Вам начислено {format_number(amount)} монет</b>\n\n"
+            f"💳 Баланс: {format_number(latest['balance'])}",
+        )
+    else:
+        await notify_send(
+            uid,
+            f"⚠️ С вашего счёта списано {format_number(-amount)} монет\n\n"
+            f"💳 Баланс: {format_number(latest['balance'])}",
+        )
     return web.HTTPFound("/admin")
 
 
@@ -345,6 +359,8 @@ async def settings_page(request: web.Request) -> web.Response:
         "mines_house_edge": get_house_edge(),
         "joker_mult_1": levels[1]["mult"],
         "joker_mult_2": levels[2]["mult"],
+        "daily_bonus": get_daily_bonus(),
+        "weekly_bonus": get_weekly_bonus(),
     }
     body = f"""
 <div class="page-title">⚠️ Настройки</div>
@@ -372,6 +388,15 @@ async def settings_page(request: web.Request) -> web.Response:
 </div>
 
 <div class="card">
+  <h2>🎁 Бонусы</h2>
+  <p class="hint">Размер бонусов, которые игроки получают раз в день и раз в неделю. Бот сам напоминает игрокам, когда бонус снова доступен.</p>
+  <div class="settings-grid">
+    <div>{_field("daily_bonus", "☀️ Ежедневный бонус", current["daily_bonus"], "1", "0", "1000000000000", "Начисляется один раз в сутки через /daily или кнопку «Бонус».")}</div>
+    <div>{_field("weekly_bonus", "🗓 Еженедельный бонус", current["weekly_bonus"], "1", "0", "1000000000000", "Начисляется один раз в неделю через /weekly или уведомление.")}</div>
+  </div>
+</div>
+
+<div class="card">
   <div style="display:flex;align-items:center;gap:12px">
     <button class="btn btn-primary">💾 Сохранить настройки</button>
     <span class="muted" style="font-size:13px">Изменения вступят в силу сразу после сохранения</span>
@@ -393,10 +418,19 @@ async def save_settings(request: web.Request) -> web.Response:
         except (TypeError, ValueError):
             return None
 
+    def _parse_int(name: str) -> int | None:
+        raw = form.get(name, "")
+        try:
+            return int(float(raw.replace(",", ".")))
+        except (TypeError, ValueError):
+            return None
+
     vals = {
         "mines_house_edge": _parse("mines_house_edge"),
         "joker_mult_1": _parse("joker_mult_1"),
         "joker_mult_2": _parse("joker_mult_2"),
+        "daily_bonus": _parse_int("daily_bonus"),
+        "weekly_bonus": _parse_int("weekly_bonus"),
     }
     ok = True
     if not vals["mines_house_edge"] or not 0.1 <= vals["mines_house_edge"] <= 2:
@@ -404,6 +438,10 @@ async def save_settings(request: web.Request) -> web.Response:
     if not vals["joker_mult_1"] or vals["joker_mult_1"] < 1:
         ok = False
     if not vals["joker_mult_2"] or vals["joker_mult_2"] < 1:
+        ok = False
+    if vals["daily_bonus"] is None or not 0 <= vals["daily_bonus"] <= 10 ** 12:
+        ok = False
+    if vals["weekly_bonus"] is None or not 0 <= vals["weekly_bonus"] <= 10 ** 12:
         ok = False
     if ok:
         for key, val in vals.items():

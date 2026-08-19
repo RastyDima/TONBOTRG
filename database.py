@@ -11,6 +11,12 @@ if DATABASE_URL:
     from psycopg2.extras import RealDictCursor
 
 
+def current_week() -> str:
+    """Идентификатор текущей недели в формате 'YYYY-Www'."""
+    iso = date.today().isocalendar()
+    return f"{iso[0]}-W{iso[1]:02d}"
+
+
 class Database:
     """Слой работы с SQLite (локальная разработка без Postgres)."""
 
@@ -75,6 +81,13 @@ class Database:
                     value TEXT NOT NULL
                 )
             """)
+            cols = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+            if "daily_notified" not in cols:
+                conn.execute("ALTER TABLE users ADD COLUMN daily_notified INTEGER NOT NULL DEFAULT 0")
+            if "last_weekly" not in cols:
+                conn.execute("ALTER TABLE users ADD COLUMN last_weekly TEXT")
+            if "weekly_notified" not in cols:
+                conn.execute("ALTER TABLE users ADD COLUMN weekly_notified INTEGER NOT NULL DEFAULT 0")
             conn.commit()
 
     # ---------- Пользователи ----------
@@ -251,6 +264,68 @@ class Database:
             )
             return True
 
+    def claim_weekly(self, user_id: int, amount: int) -> bool:
+        week = current_week()
+        with closing(self._connect()) as conn, conn:
+            row = conn.execute(
+                "SELECT last_weekly FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
+            if row is None or row["last_weekly"] == week:
+                return False
+            conn.execute(
+                "UPDATE users SET balance = balance + ?, last_weekly = ?, weekly_notified = 0 WHERE id = ?",
+                (amount, week, user_id),
+            )
+            conn.execute(
+                "INSERT INTO transactions (user_id, amount, type, description) VALUES (?, ?, ?, ?)",
+                (user_id, amount, "weekly", "Еженедельный бонус"),
+            )
+            return True
+
+    def get_daily_eligible(self) -> list[dict]:
+        """Игроки, которым можно напомнить про ежедневный бонус (забрали раньше, сегодня ещё нет)."""
+        today = date.today().isoformat()
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                """
+                SELECT id FROM users
+                WHERE is_blocked = 0
+                  AND last_daily IS NOT NULL
+                  AND last_daily != ?
+                  AND daily_notified = 0
+                """,
+                (today,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_weekly_eligible(self) -> list[dict]:
+        """Игроки, которым можно напомнить про еженедельный бонус (забирали раньше, в эту неделю ещё нет)."""
+        week = current_week()
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                """
+                SELECT id FROM users
+                WHERE is_blocked = 0
+                  AND last_weekly IS NOT NULL
+                  AND last_weekly != ?
+                  AND weekly_notified = 0
+                """,
+                (week,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def mark_daily_notified(self, user_id: int) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "UPDATE users SET daily_notified = 1 WHERE id = ?", (user_id,)
+            )
+
+    def mark_weekly_notified(self, user_id: int) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "UPDATE users SET weekly_notified = 1 WHERE id = ?", (user_id,)
+            )
+
     # ---------- Рейтинг ----------
 
     def top_balance(self, limit: int = 10) -> list[dict]:
@@ -393,6 +468,13 @@ class PostgresDatabase:
                     value TEXT NOT NULL
                 )
             """)
+            cur.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_notified INTEGER NOT NULL DEFAULT 0"
+            )
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_weekly TEXT")
+            cur.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS weekly_notified INTEGER NOT NULL DEFAULT 0"
+            )
 
     # ---------- Пользователи ----------
 
@@ -570,6 +652,61 @@ class PostgresDatabase:
                 (user_id, amount, "daily", "Ежедневный бонус"),
             )
             return True
+
+    def claim_weekly(self, user_id: int, amount: int) -> bool:
+        week = current_week()
+        with self._cursor() as cur:
+            cur.execute("SELECT last_weekly FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            if row is None or row["last_weekly"] == week:
+                return False
+            cur.execute(
+                "UPDATE users SET balance = balance + %s, last_weekly = %s, weekly_notified = 0 WHERE id = %s",
+                (amount, week, user_id),
+            )
+            cur.execute(
+                "INSERT INTO transactions (user_id, amount, type, description) VALUES (%s, %s, %s, %s)",
+                (user_id, amount, "weekly", "Еженедельный бонус"),
+            )
+            return True
+
+    def get_daily_eligible(self) -> list[dict]:
+        today = date.today().isoformat()
+        with self._cursor() as cur:
+            cur.execute(
+                """
+                SELECT id FROM users
+                WHERE is_blocked = 0
+                  AND last_daily IS NOT NULL
+                  AND last_daily != %s
+                  AND daily_notified = 0
+                """,
+                (today,),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+    def get_weekly_eligible(self) -> list[dict]:
+        week = current_week()
+        with self._cursor() as cur:
+            cur.execute(
+                """
+                SELECT id FROM users
+                WHERE is_blocked = 0
+                  AND last_weekly IS NOT NULL
+                  AND last_weekly != %s
+                  AND weekly_notified = 0
+                """,
+                (week,),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+    def mark_daily_notified(self, user_id: int) -> None:
+        with self._cursor() as cur:
+            cur.execute("UPDATE users SET daily_notified = 1 WHERE id = %s", (user_id,))
+
+    def mark_weekly_notified(self, user_id: int) -> None:
+        with self._cursor() as cur:
+            cur.execute("UPDATE users SET weekly_notified = 1 WHERE id = %s", (user_id,))
 
     # ---------- Рейтинг ----------
 

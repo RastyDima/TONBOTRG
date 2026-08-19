@@ -26,9 +26,10 @@ WEBHOOK_PATH = os.getenv("WEBHOOK_PATH", "/webhook")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "ton-bot-secret")
 PORT = int(os.getenv("PORT", "8080"))
 
-# Стартовый баланс и ежедневный бонус
+# Стартовый баланс и бонусы
 STARTING_BALANCE = 1000
 DAILY_BONUS = 1000
+WEEKLY_BONUS = 5000
 
 # Ограничения ставок
 MIN_BET = 1

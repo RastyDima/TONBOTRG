@@ -1,6 +1,21 @@
 import html
 
-from config import MAX_BET, MIN_BET
+from config import DAILY_BONUS, MAX_BET, MIN_BET, WEEKLY_BONUS
+from database import db
+
+
+def get_daily_bonus() -> int:
+    try:
+        return int(db.get_setting("daily_bonus", str(DAILY_BONUS)))
+    except (TypeError, ValueError):
+        return DAILY_BONUS
+
+
+def get_weekly_bonus() -> int:
+    try:
+        return int(db.get_setting("weekly_bonus", str(WEEKLY_BONUS)))
+    except (TypeError, ValueError):
+        return WEEKLY_BONUS
 
 
 def format_number(n: int) -> str:
@@ -57,6 +72,7 @@ def quick_command(text, commands, max_bet=MAX_BET):
 
 TX_LABELS = {
     "daily": "🎁 Ежедневный бонус",
+    "weekly": "🗓 Еженедельный бонус",
     "admin": "⚙️ Выдача администратором",
     "game_bet": "🎰 Ставка",
     "game_win": "🏆 Выигрыш",

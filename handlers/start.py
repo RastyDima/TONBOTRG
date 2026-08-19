@@ -43,6 +43,7 @@ async def cmd_help(message: Message):
         "💰 <b>Баланс:</b> <code>б</code>\n"
         "👤 /profile — профиль и статистика\n"
         "🎁 /daily — ежедневный бонус\n"
+        "🗓 /weekly — еженедельный бонус\n"
         "📜 /history — история транзакций\n"
         "🏆 /rating — рейтинг игроков\n"
         "❌ /cancel — отменить действие или выйти из игры\n\n"

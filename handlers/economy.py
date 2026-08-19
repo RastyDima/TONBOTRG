@@ -4,10 +4,16 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from config import DAILY_BONUS
 from database import db
 from keyboards.common import back_button
-from utils.helpers import format_number, history_text, quick_command
+from utils.helpers import (
+    format_number,
+    get_daily_bonus,
+    get_weekly_bonus,
+    history_text,
+    quick_command,
+)
+from utils.notify import send as notify_send
 
 router = Router()
 
@@ -32,10 +38,10 @@ def back_kb():
 
 @router.message(Command("daily"))
 async def daily_command(message: Message):
-    ok = db.claim_daily(message.from_user.id, DAILY_BONUS)
+    ok = db.claim_daily(message.from_user.id, get_daily_bonus())
     if ok:
         await message.answer(
-            f"🎁 <b>Ежедневный бонус</b>\n\nВы получили {format_number(DAILY_BONUS)} монет!",
+            f"🎁 <b>Ежедневный бонус</b>\n\nВы получили {format_number(get_daily_bonus())} монет!",
             reply_markup=back_kb(),
         )
     else:
@@ -48,15 +54,47 @@ async def daily_command(message: Message):
 async def daily_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.answer()
-    ok = db.claim_daily(callback.from_user.id, DAILY_BONUS)
+    ok = db.claim_daily(callback.from_user.id, get_daily_bonus())
     if ok:
         await callback.message.edit_text(
-            f"🎁 <b>Ежедневный бонус</b>\n\nВы получили {format_number(DAILY_BONUS)} монет!",
+            f"🎁 <b>Ежедневный бонус</b>\n\nВы получили {format_number(get_daily_bonus())} монет!",
             reply_markup=back_kb(),
         )
     else:
         await callback.message.edit_text(
             "⏳ Вы уже получали бонус сегодня. Возвращайтесь завтра!", reply_markup=back_kb()
+        )
+
+
+@router.message(Command("weekly"))
+async def weekly_command(message: Message):
+    ok = db.claim_weekly(message.from_user.id, get_weekly_bonus())
+    if ok:
+        await message.answer(
+            f"🗓 <b>Еженедельный бонус</b>\n\nВы получили {format_number(get_weekly_bonus())} монет!",
+            reply_markup=back_kb(),
+        )
+    else:
+        await message.answer(
+            "⏳ Вы уже получали еженедельный бонус. Возвращайтесь на следующей неделе!",
+            reply_markup=back_kb(),
+        )
+
+
+@router.callback_query(F.data == "weekly", StateFilter("*"))
+async def weekly_callback(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.answer()
+    ok = db.claim_weekly(callback.from_user.id, get_weekly_bonus())
+    if ok:
+        await callback.message.edit_text(
+            f"🗓 <b>Еженедельный бонус</b>\n\nВы получили {format_number(get_weekly_bonus())} монет!",
+            reply_markup=back_kb(),
+        )
+    else:
+        await callback.message.edit_text(
+            "⏳ Вы уже получали еженедельный бонус. Возвращайтесь на следующей неделе!",
+            reply_markup=back_kb(),
         )
 
 
@@ -121,6 +159,13 @@ async def transfer_money(message: Message, state: FSMContext):
     await state.clear()
     db.add_balance(sender.id, -amount, "transfer_out", f"Перевод игроку {receiver.full_name}")
     db.add_balance(receiver.id, amount, "transfer_in", f"Перевод от игрока {sender.full_name}")
+    latest = db.get_user(receiver.id)
+    await notify_send(
+        receiver.id,
+        f"💸 <b>Перевод получен</b>\n\n"
+        f"Игрок {sender.full_name} перевёл вам <b>{format_number(amount)}</b> монет.\n"
+        f"💳 Баланс: {format_number(latest['balance'])}",
+    )
     await message.answer(
         f"✅ Переведено <b>{format_number(amount)}</b> монет игроку {receiver.full_name}.\n"
         f"💰 Ваш баланс: {format_number(sender_db['balance'] - amount)}"

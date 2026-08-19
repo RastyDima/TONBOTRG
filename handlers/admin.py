@@ -10,6 +10,7 @@ from database import db
 from keyboards.admin import admin_menu
 from keyboards.common import back_button, cancel_kb
 from utils.helpers import format_number
+from utils.notify import send as notify_send
 
 router = Router()
 
@@ -99,6 +100,12 @@ async def admin_give_amount(message: Message, state: FSMContext):
         return
     db.add_balance(target_id, amount, "admin", f"Выдача администратором {message.from_user.full_name}")
     await state.clear()
+    latest = db.get_user(target_id)
+    await notify_send(
+        target_id,
+        f"💰 <b>Вам начислено {format_number(amount)} монет</b>\n\n"
+        f"💳 Баланс: {format_number(latest['balance'])}",
+    )
     await message.answer(f"✅ Игроку <b>{user_label(target)}</b> начислено {format_number(amount)} монет.")
 
 
