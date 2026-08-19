@@ -89,14 +89,16 @@ def win_text(game) -> str:
         f"🎉 <b>Победа!</b>\n\n{render_field(game)}\n\n"
         f"Множитель: {game.multiplier}x\n"
         f"💰 Выигрыш: <b>{format_number(game.payout)}</b> "
-        f"(+{format_number(game.payout - game.bet)})"
+        f"(+{format_number(game.payout - game.bet)})\n"
+        f"🍀<i>seed</i>: <code>{game.seed}</code>"
     )
 
 
 def lose_text(game) -> str:
     return (
         f"💥 <b>Вы наступили на мину!</b>\n\n{render_field(game)}\n\n"
-        f"Ставка {format_number(game.bet)} сгорела."
+        f"Ставка {format_number(game.bet)} сгорела.\n"
+        f"🍀<i>seed</i>: <code>{game.seed}</code>"
     )
 
 

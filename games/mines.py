@@ -1,4 +1,5 @@
 import random
+import secrets
 from math import comb
 
 from database import db
@@ -27,7 +28,12 @@ class MinesGame:
         self.user_id = user_id
         self.bet = bet
         self.mines = mines
-        self.mine_positions = set(random.sample(range(FIELD_SIZE), mines))
+        # Provably fair: позиция мин задаётся крипто-случайным seed'ом в момент
+        # старта игры. Пока игра идёт, seed не показывается (иначе мины можно
+        # вычислить), а после конца отображается для проверки честности.
+        self.seed = secrets.token_hex(16)
+        rng = random.Random(int(self.seed, 16))
+        self.mine_positions = set(rng.sample(range(FIELD_SIZE), mines))
         self.revealed = set()
         self.lost = False
         self.cashed_out = False
