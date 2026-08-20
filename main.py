@@ -19,6 +19,9 @@ from webadmin import register_admin_routes
 
 logging.basicConfig(level=logging.INFO)
 
+APP_VERSION = "8feb36c+marked"
+logging.info("Starting TONBOTRG build %s (WEBHOOK=%s, backend=%s)", APP_VERSION, bool(WEBHOOK_URL), type(db).__name__)
+
 REMINDER_INTERVAL = 30 * 60  # секунд
 HEARTBEAT_INTERVAL = 4 * 60  # секунд, меньше порога простоя Render (~15 мин)
 
