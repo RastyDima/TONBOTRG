@@ -92,6 +92,15 @@ def menu_text(user: dict) -> str:
     )
 
 
+def balance_text(user: dict) -> str:
+    return (
+        f"💰 <b>Баланс</b>\n\n"
+        f"💳 {format_number(user['balance'])} монет\n\n"
+        f"💸 Перевести: ответьте на сообщение игрока — <code>п 12000</code>\n"
+        f"📲 Быстрый запрос: просто напишите <code>б</code> в чате"
+    )
+
+
 def profile_text(user: dict, stats: dict) -> str:
     total = stats["total_games"]
     winrate = round(stats["wins"] * 100 / total, 1) if total else 0

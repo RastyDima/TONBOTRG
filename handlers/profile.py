@@ -6,7 +6,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from database import db
 from keyboards.common import back_button
-from utils.helpers import profile_text
+from utils.helpers import balance_text, profile_text
 
 router = Router()
 
@@ -14,6 +14,14 @@ router = Router()
 def profile_kb():
     kb = InlineKeyboardBuilder()
     kb.row(back_button("menu"))
+    return kb.as_markup()
+
+
+def balance_kb():
+    kb = InlineKeyboardBuilder()
+    kb.row(
+        back_button("menu"),
+    )
     return kb.as_markup()
 
 
@@ -27,7 +35,7 @@ async def profile_command(message: Message):
     await message.answer(profile_text(user, stats), reply_markup=profile_kb())
 
 
-@router.callback_query(F.data.in_({"profile", "balance"}), StateFilter("*"))
+@router.callback_query(F.data == "profile", StateFilter("*"))
 async def profile_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.answer()
@@ -37,3 +45,14 @@ async def profile_callback(callback: CallbackQuery, state: FSMContext):
         return
     stats = db.get_stats(callback.from_user.id)
     await callback.message.edit_text(profile_text(user, stats), reply_markup=profile_kb())
+
+
+@router.callback_query(F.data == "balance", StateFilter("*"))
+async def balance_callback(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.answer()
+    user = db.get_user(callback.from_user.id)
+    if not user:
+        await callback.message.edit_text("Используйте /start")
+        return
+    await callback.message.edit_text(balance_text(user), reply_markup=balance_kb())

@@ -7,6 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database import db
 from keyboards.common import back_button
 from utils.helpers import (
+    balance_text,
     format_number,
     get_daily_bonus,
     get_weekly_bonus,
@@ -119,7 +120,7 @@ async def balance_quick(message: Message, state: FSMContext):
     if not user:
         await message.answer("Сначала нажмите /start")
         return
-    await message.answer(f"💰 <b>Баланс</b>\n\n💳 {format_number(user['balance'])} монет")
+    await message.answer(balance_text(user))
 
 
 @router.message(F.text, is_transfer)
