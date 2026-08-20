@@ -85,12 +85,10 @@ TX_LABELS = {
 
 def menu_text(user: dict) -> str:
     return (
-        "🎰 <b>КАЗИНО</b> ⚡\n"
-        "━━━━━━━━━━━━━━\n"
+        f"🎰 <b>Казино-бот</b>\n\n"
         f"👤 {html.escape(str(user['first_name'] or 'Игрок'))}\n"
-        f"💳 Баланс: <b>{format_number(user['balance'])}</b> монет\n"
-        "━━━━━━━━━━━━━━\n\n"
-        "Игры, профиль и бонусы — в кнопках ниже ⬇️"
+        f"💳 Баланс: <b>{format_number(user['balance'])}</b> монет\n\n"
+        f"Выберите действие:"
     )
 
 

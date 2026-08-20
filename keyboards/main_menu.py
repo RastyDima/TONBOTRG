@@ -1,27 +1,15 @@
-from aiogram.types import InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-
-
-def _b(text: str, callback_data: str) -> InlineKeyboardButton:
-    return InlineKeyboardButton(text=text, callback_data=callback_data)
 
 
 def main_menu(is_admin: bool = False):
     kb = InlineKeyboardBuilder()
-    kb.row(
-        _b("💣 Мины", "mines"),
-        _b("🃏 Джокер", "joker"),
-        _b("⚗️ Алхимик", "alchemist"),
-    )
-    kb.row(
-        _b("👤 Профиль", "profile"),
-        _b("🏆 Рейтинг", "rating"),
-    )
-    kb.row(
-        _b("🎁 Бонус", "daily"),
-        _b("💳 Баланс", "balance"),
-        _b("📜 История", "history"),
-    )
+    kb.button(text="🎮 Игры", callback_data="menu_games")
+    kb.button(text="👤 Профиль", callback_data="profile")
+    kb.button(text="💰 Баланс", callback_data="balance")
+    kb.button(text="🎁 Бонус", callback_data="daily")
+    kb.button(text="🏆 Рейтинг", callback_data="rating")
+    kb.button(text="📜 История", callback_data="history")
     if is_admin:
-        kb.row(_b("⚙️ Админ-панель", "admin"))
+        kb.button(text="⚙️ Админ-панель", callback_data="admin")
+    kb.adjust(2)
     return kb.as_markup()

@@ -19,17 +19,17 @@ async def cmd_start(message: Message):
     user = message.from_user
     existing = db.get_user(user.id)
     db.register_user(user.id, (user.username or "").lower() or None, user.first_name)
-    row = db.get_user(user.id)
     name = html.escape(user.first_name or "игрок")
     if existing:
-        text = f"👋 С возвращением, {name}!"
+        text = f"👋 С возвращением, {name}!\nВыберите действие в меню:"
     else:
         text = (
-            f"👋 <b>Добро пожаловать, {name}!</b>\n"
-            f"🎁 За регистрацию начислено {format_number(STARTING_BALANCE)} монет."
+            f"👋 <b>Добро пожаловать, {name}!</b>\n\n"
+            f"🎁 За регистрацию начислено {format_number(STARTING_BALANCE)} монет.\n\n"
+            f"Выберите действие в меню:"
         )
-    is_admin = user.id in ADMIN_IDS or bool(row["is_admin"])
-    await message.answer(text + "\n\n" + menu_text(row), reply_markup=main_menu(is_admin))
+    is_admin = user.id in ADMIN_IDS or bool(db.get_user(user.id)["is_admin"])
+    await message.answer(text, reply_markup=main_menu(is_admin))
 
 
 @router.message(Command("help"))
