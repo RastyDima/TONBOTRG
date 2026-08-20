@@ -63,18 +63,37 @@ def pick_text(game, has_bet: bool = False) -> str:
     return "\n".join(lines)
 
 
-def mixing_text(game) -> str:
+def mixing_phases(game) -> list[str]:
+    """Отдельные кадры анимации варки: статус + прогресс-бар + пузырьки."""
     e1, n1 = INGREDIENTS[game.picks[0]]
     e2, n2 = INGREDIENTS[game.picks[1]]
-    return (
+    header = (
         f"⚗️ <b>Алхимик</b>\n\n"
-        f"Вы смешиваете:\n\n"
         f"{e1} {n1}\n+\n{e2} {n2}\n\n"
-        f"━━━━━━━━━━━━━━\n"
-        f"⚗️ Зелье готовится...\n"
-        f"🫧 🫧 🫧\n"
-        f"━━━━━━━━━━━━━━"
     )
+    statuses = [
+        ("⚗️ Ингредиенты помещены в котёл...", "🫧"),
+        ("🔮 Смесь начинает светиться...", "🫧 ✨"),
+        ("✨ Порошок обретает силу...", "✨ 💫"),
+        ("💫 Зелье бурлит, цвет меняется...", "💫 💥 ✨"),
+        ("⚡ Почти готово...", "⚗️ ✨ 💫"),
+    ]
+    bars = ["░░░░░░░░░░", "▓░░░░░░░░░", "▓▓░░░░░░░░", "▓▓▓░░░░░░░",
+            "▓▓▓▓░░░░░░", "▓▓▓▓▓░░░░░", "▓▓▓▓▓▓░░░░", "▓▓▓▓▓▓▓░░░",
+            "▓▓▓▓▓▓▓▓░░", "▓▓▓▓▓▓▓▓▓░", "▓▓▓▓▓▓▓▓▓▓"]
+    n = len(statuses)
+    frames = []
+    for i, (status, bubbles) in enumerate(statuses, 1):
+        bar = bars[int((i - 1) / (n - 1) * (len(bars) - 1))]
+        frames.append(
+            header
+            + f"━━━━━━━━━━━━━━\n"
+            + f"{status}\n"
+            + f"<code>[{bar}]</code> {i * 100 // n}%\n"
+            + f"{bubbles}\n"
+            + f"━━━━━━━━━━━━━━"
+        )
+    return frames
 
 
 def win_text(game) -> str:
@@ -86,6 +105,7 @@ def win_text(game) -> str:
         f"⚗️ <b>Алхимик</b>\n\n"
         f"Смешано: {e1} {n1} + {e2} {n2}\n\n"
         f"━━━━━━━━━━━━━━\n"
+        f"✨ <b>Зелье готово!</b>\n"
         f"{emoji} <b>{name}</b> ×{mult}\n"
         f"💰 Выигрыш: <b>{format_number(game.payout)}</b> "
         f"(+{format_number(game.payout - game.bet)})\n"
@@ -98,8 +118,9 @@ def lose_text(game) -> str:
     emoji, name, _ = result
     return (
         f"⚗️ <b>Алхимик</b>\n\n"
+        f"💥 <b>Крак!</b>\n"
         f"{emoji} <b>{name}!</b>\n\n"
-        f"Зелье взорвалось... Ставка {format_number(game.bet)} сгорела."
+        f"Зелье не получилось... Ставка {format_number(game.bet)} сгорела."
     )
 
 
@@ -226,15 +247,32 @@ async def alchemist_process_bet(message: Message, state: FSMContext):
 
 async def finish_mix(callback: CallbackQuery, game) -> None:
     await callback.answer("⚗️ Смешиваю...")
-    await callback.message.edit_text(mixing_text(game), reply_markup=None)
-    await asyncio.sleep(1.5)
+    try:
+        frames = mixing_phases(game)
+        await callback.message.edit_text(frames[0], reply_markup=None)
+        for frame in frames[1:]:
+            await asyncio.sleep(1.1)
+            await callback.message.edit_text(frame)
+        await asyncio.sleep(1.3)
+    except Exception:
+        # Сообщение могли удалить во время анимации — не роняем хендлер.
+        pass
+
     game.resolve()
     if game.multiplier <= 0:
         lose_game(game.user_id)
-        await callback.message.edit_text(lose_text(game), reply_markup=None)
+        final_text = lose_text(game)
     else:
         cashout_game(game.user_id)
-        await callback.message.edit_text(win_text(game), reply_markup=None)
+        final_text = win_text(game)
+
+    try:
+        await callback.message.edit_text(final_text)
+    except Exception:
+        try:
+            await callback.bot.send_message(callback.message.chat.id, final_text)
+        except Exception:
+            pass
 
 
 @router.callback_query(F.data == "alch_cancel")
