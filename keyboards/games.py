@@ -7,6 +7,7 @@ def games_menu():
     kb = InlineKeyboardBuilder()
     kb.button(text="💣 Мины", callback_data="mines")
     kb.button(text="🃏 Джокер", callback_data="joker")
+    kb.button(text="⚗️ Алхимик", callback_data="alchemist")
     kb.adjust(2)
     kb.row(back_button("menu"))
     return kb.as_markup()

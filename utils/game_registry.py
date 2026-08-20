@@ -1,6 +1,6 @@
 from database import db
 
-GAME_LABELS = {"mines": "Мины", "joker": "Джокер"}
+GAME_LABELS = {"mines": "Мины", "joker": "Джокер", "alchemist": "Алхимик"}
 
 
 class GameRegistry:

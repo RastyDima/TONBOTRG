@@ -17,6 +17,7 @@ async def games_menu_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         "🎮 <b>Игры</b>\n\n"
         "💣 <b>Мины</b> — поле 5×5, от 1 до 10 мин\n"
-        "🃏 <b>Джокер</b> — карточная игра с уровнями риска",
+        "🃏 <b>Джокер</b> — карточная игра с уровнями риска\n"
+        "⚗️ <b>Алхимик</b> — смешай 2 ингредиента и получи зелье",
         reply_markup=games_menu(),
     )
