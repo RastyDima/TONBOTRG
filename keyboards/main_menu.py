@@ -9,6 +9,7 @@ def main_menu(is_admin: bool = False):
     kb.button(text="🎁 Бонус", callback_data="daily")
     kb.button(text="🏆 Рейтинг", callback_data="rating")
     kb.button(text="📜 История", callback_data="history")
+    kb.button(text="🛒 Магазин", callback_data="shop")
     if is_admin:
         kb.button(text="⚙️ Админ-панель", callback_data="admin")
     kb.adjust(2)

@@ -66,6 +66,28 @@ async def back_to_menu(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(menu_text(user), reply_markup=main_menu(is_admin))
 
 
+@router.callback_query(F.data == "shop", StateFilter("*"))
+async def shop_callback(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    clear_pending_bet(callback.from_user.id)
+    await callback.answer("🛒 Скоро открытие!", show_alert=True)
+    await callback.message.edit_text(
+        "🛒 <b>Магазин</b>\n\n"
+        "🔐 Раздел ещё закрыт и откроется совсем скоро.\n\n"
+        "Здесь появятся скины, аватарки и другие вкусности за монеты.",
+        reply_markup=back_to_menu_markup(),
+    )
+
+
+def back_to_menu_markup():
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from keyboards.common import back_button
+
+    kb = InlineKeyboardBuilder()
+    kb.row(back_button("menu"))
+    return kb.as_markup()
+
+
 @router.callback_query(F.data == "cancel", StateFilter("*"))
 async def cancel_action(callback: CallbackQuery, state: FSMContext):
     await state.clear()
