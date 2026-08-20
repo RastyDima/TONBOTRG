@@ -7,7 +7,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from config import ADMIN_IDS
 from database import db
-from keyboards.admin import admin_menu
+from keyboards.admin import admin_menu, admin_reset_kb
 from keyboards.common import back_button, cancel_kb
 from utils.helpers import format_number
 from utils.notify import send as notify_send
@@ -174,6 +174,41 @@ async def admin_stats(callback: CallbackQuery, state: FSMContext):
         f"💸 Оборот: {format_number(data['tx_volume'])}",
         reply_markup=kb.as_markup(),
     )
+
+
+@router.callback_query(F.data == "admin_reset", StateFilter("*"))
+async def admin_reset_start(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.answer()
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔️ Доступ запрещён.", show_alert=True)
+        return
+    await callback.message.edit_text(
+        "🗑 <b>Сброс базы данных</b>\n\n"
+        "Всем игрокам будет установлен стартовый баланс, "
+        "статистика, история и активации промокодов будут удалены.\n"
+        "Действие необратимо!\n\n"
+        "Подтвердите:",
+        reply_markup=admin_reset_kb(),
+    )
+
+
+@router.callback_query(F.data == "admin_reset_yes", StateFilter("*"))
+async def admin_reset_yes(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔️ Доступ запрещён.", show_alert=True)
+        return
+    db.reset_database()
+    await callback.answer("🗑 База данных сброшена!")
+    await callback.message.edit_text("🗑 <b>База данных сброшена.</b>\n\nВсе балансы и статистика обнулены.")
+
+
+@router.callback_query(F.data == "admin_reset_no", StateFilter("*"))
+async def admin_reset_no(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.answer()
+    await callback.message.edit_text("✅ Отменено.", reply_markup=admin_menu())
 
 
 # ---------- Промокоды ----------

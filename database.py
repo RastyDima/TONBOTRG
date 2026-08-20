@@ -511,6 +511,24 @@ class Database:
             )
         return ("ok", promo["amount"])
 
+    def reset_database(self) -> None:
+        """Полный сброс: всем баланс на стартовый, обнуление статистики и истории."""
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "UPDATE users SET balance = ?, max_balance = ?, "
+                "last_daily = NULL, last_weekly = NULL, "
+                "daily_notified = 0, weekly_notified = 0",
+                (STARTING_BALANCE, STARTING_BALANCE),
+            )
+            conn.execute(
+                "UPDATE stats SET total_games = 0, wins = 0, losses = 0, "
+                "total_bet = 0, total_won = 0"
+            )
+            conn.execute("DELETE FROM transactions")
+            conn.execute("DELETE FROM games")
+            conn.execute("DELETE FROM promo_claims")
+            conn.execute("UPDATE promos SET used_count = 0")
+
 
 class PostgresDatabase:
     """Слой работы с PostgreSQL (для облачного хостинга)."""
@@ -1013,6 +1031,24 @@ class PostgresDatabase:
                 (user_id, promo["amount"], "promo", f"Промокод {promo['code']}"),
             )
         return ("ok", promo["amount"])
+
+    def reset_database(self) -> None:
+        """Полный сброс: всем баланс на стартовый, обнуление статистики и истории."""
+        with self._cursor() as cur:
+            cur.execute(
+                "UPDATE users SET balance = %s, max_balance = %s, "
+                "last_daily = NULL, last_weekly = NULL, "
+                "daily_notified = 0, weekly_notified = 0",
+                (STARTING_BALANCE, STARTING_BALANCE),
+            )
+            cur.execute(
+                "UPDATE stats SET total_games = 0, wins = 0, losses = 0, "
+                "total_bet = 0, total_won = 0"
+            )
+            cur.execute("DELETE FROM transactions")
+            cur.execute("DELETE FROM games")
+            cur.execute("DELETE FROM promo_claims")
+            cur.execute("UPDATE promos SET used_count = 0")
 
 
 db = PostgresDatabase() if DATABASE_URL else Database()

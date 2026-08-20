@@ -367,6 +367,8 @@ async def settings_page(request: web.Request) -> web.Response:
 <div class="page-title">⚠️ Настройки</div>
 <div class="page-sub">Коэффициенты игр. Применяются сразу, без перезапуска бота.</div>
 
+{f'<div class="warn-banner" style="border-color:rgba(16,185,129,.4)"><span style="font-size:18px">✅</span><span><b>База данных сброшена.</b> Все балансы и статистика обнулены.</span></div>' if request.query.get("resetted") else ''}
+
 <div class="warn-banner">
   <span style="font-size:18px">⚠️</span>
   <span><b>Опасная зона.</b> От этих значений напрямую зависит баланс заведения: уменьшите множители — игроки будут получать меньше, увеличьте — бот будет терять больше. Вводите значения аккуратно.</span>
@@ -403,8 +405,31 @@ async def settings_page(request: web.Request) -> web.Response:
     <span class="muted" style="font-size:13px">Изменения вступят в силу сразу после сохранения</span>
   </div>
 </div>
-</form>"""
+</form>
+
+<div class="card" style="border-color:rgba(239,68,68,.35); background:rgba(239,68,68,.04)">
+  <h2 style="color:#fca5a5">🗑 Сброс базы данных</h2>
+  <p class="hint">Всем игрокам будет установлен стартовый баланс, статистика, история транзакций, игры и активации промокодов будут удалены. Промокоды как записи сохранятся. Действие необратимо.</p>
+  <form method="post" action="/admin/reset"
+        onsubmit="return confirm('Точно сбросить БАЗУ ДАННЫХ всем игрокам? Это необратимо.');">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <input type="text" name="confirm" placeholder="Введите слово СБРОС" required
+             style="width:200px" autocomplete="off">
+      <button class="btn btn-danger">🗑 Сбросить базу данных</button>
+    </div>
+  </form>
+</div>"""
     return web.Response(text=_page("Настройки", body, "settings"), content_type="text/html", charset="utf-8")
+
+
+async def reset_database(request: web.Request) -> web.Response:
+    if not _auth_ok(request):
+        return web.HTTPFound("/admin/login")
+    form = await request.post()
+    if (form.get("confirm", "") or "").strip().upper() != "СБРОС":
+        return web.HTTPFound("/admin/settings")
+    db.reset_database()
+    return web.HTTPFound("/admin/settings?resetted=1")
 
 
 async def save_settings(request: web.Request) -> web.Response:
@@ -606,6 +631,7 @@ def register_admin_routes(app: web.Application) -> None:
     app.router.add_post("/admin/unblock", unblock_user)
     app.router.add_get("/admin/settings", settings_page)
     app.router.add_post("/admin/settings", save_settings)
+    app.router.add_post("/admin/reset", reset_database)
     app.router.add_get("/admin/promos", promos_page)
     app.router.add_post("/admin/promos/create", create_promo)
     app.router.add_post("/admin/promos/toggle", toggle_promo)

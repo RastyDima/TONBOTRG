@@ -154,13 +154,9 @@ async def quick_mines_start(message: Message, state: FSMContext):
         await message.answer("⚠️ Сначала завершите текущую игру (кнопка «Отмена» или /cancel).")
         return
     if bet is None:
+        # «м» без суммы — молча игнорируем, чтобы не спамить лишними сообщениями.
         await state.clear()
         clear_pending_bet(message.from_user.id)
-        await message.answer(
-            "💣 <b>Мины</b>\nБыстрый старт: <code>м 30000</code> — начнёт игру со ставкой.\n\n"
-            "Либо выберите количество мин (ставку потом впишете):",
-            reply_markup=mines_count_kb(),
-        )
         return
     user = db.get_user(message.from_user.id)
     if not user:
