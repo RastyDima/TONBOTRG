@@ -95,7 +95,8 @@ def menu_text(user: dict) -> str:
 def balance_text(user: dict) -> str:
     return (
         f"💰 <b>Баланс</b>\n\n"
-        f"💳 {format_number(user['balance'])} монет\n\n"
+        f"💳 Монеты: <b>{format_number(user['balance'])}</b>\n"
+        f"💎 Рубины: <b>х</b> <i>(скоро)</i>\n\n"
         f"💸 Перевести: ответьте на сообщение игрока — <code>п 12000</code>\n"
         f"📲 Быстрый запрос: просто напишите <code>б</code> в чате"
     )
