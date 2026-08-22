@@ -98,7 +98,7 @@ def lose_text(game) -> str:
     return text
 
 
-@router.callback_query(F.data == "joker")
+@router.callback_query(F.data == "joker", StateFilter("*"))
 async def joker_level_menu(callback: CallbackQuery):
     await callback.answer()
     if registry.is_active(callback.from_user.id):
@@ -112,7 +112,7 @@ async def joker_level_menu(callback: CallbackQuery):
     )
 
 
-@router.callback_query(F.data.startswith("joker:"))
+@router.callback_query(F.data.startswith("joker:"), StateFilter("*"))
 async def joker_choose_level(callback: CallbackQuery, state: FSMContext):
     level = int(callback.data.split(":", 1)[1])
     cfg = get_joker_levels()[level]
@@ -209,7 +209,7 @@ async def joker_process_bet(message: Message, state: FSMContext):
     await message.answer(field_text(game), reply_markup=field_kb(game))
 
 
-@router.callback_query(F.data.startswith("joker_pick:"))
+@router.callback_query(F.data.startswith("joker_pick:"), StateFilter("*"))
 async def joker_pick(callback: CallbackQuery):
     user_id = callback.from_user.id
     game = registry.game(user_id)
@@ -232,7 +232,7 @@ async def joker_pick(callback: CallbackQuery):
     await callback.message.edit_text(field_text(game), reply_markup=field_kb(game))
 
 
-@router.callback_query(F.data == "joker_cashout")
+@router.callback_query(F.data == "joker_cashout", StateFilter("*"))
 async def joker_cashout(callback: CallbackQuery):
     result = cashout_game(callback.from_user.id)
     if not result:
@@ -243,7 +243,7 @@ async def joker_cashout(callback: CallbackQuery):
     await callback.message.edit_text(win_text(game), reply_markup=None)
 
 
-@router.callback_query(F.data == "joker_cancel")
+@router.callback_query(F.data == "joker_cancel", StateFilter("*"))
 async def joker_cancel(callback: CallbackQuery):
     cancel_game(callback.from_user.id)
     await callback.answer()

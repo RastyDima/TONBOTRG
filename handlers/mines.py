@@ -102,7 +102,7 @@ def lose_text(game) -> str:
     )
 
 
-@router.callback_query(F.data == "mines")
+@router.callback_query(F.data == "mines", StateFilter("*"))
 async def mines_count_menu(callback: CallbackQuery):
     await callback.answer()
     if registry.is_active(callback.from_user.id):
@@ -113,7 +113,7 @@ async def mines_count_menu(callback: CallbackQuery):
     )
 
 
-@router.callback_query(F.data.startswith("mines:"))
+@router.callback_query(F.data.startswith("mines:"), StateFilter("*"))
 async def mines_choose_count(callback: CallbackQuery, state: FSMContext):
     count = int(callback.data.split(":", 1)[1])
     bet = get_pending_bet(callback.from_user.id)
@@ -201,7 +201,7 @@ async def mines_process_bet(message: Message, state: FSMContext):
     await message.answer(field_text(game), reply_markup=field_kb(game))
 
 
-@router.callback_query(F.data.startswith("mines_cell:"))
+@router.callback_query(F.data.startswith("mines_cell:"), StateFilter("*"))
 async def mines_reveal(callback: CallbackQuery):
     user_id = callback.from_user.id
     game = registry.game(user_id)
@@ -232,7 +232,7 @@ async def mines_reveal(callback: CallbackQuery):
     await callback.message.edit_text(field_text(game), reply_markup=field_kb(game))
 
 
-@router.callback_query(F.data == "mines_cashout")
+@router.callback_query(F.data == "mines_cashout", StateFilter("*"))
 async def mines_cashout(callback: CallbackQuery):
     result = cashout_game(callback.from_user.id)
     if not result:
@@ -243,7 +243,7 @@ async def mines_cashout(callback: CallbackQuery):
     await callback.message.edit_text(win_text(game), reply_markup=None)
 
 
-@router.callback_query(F.data == "mines_cancel")
+@router.callback_query(F.data == "mines_cancel", StateFilter("*"))
 async def mines_cancel(callback: CallbackQuery):
     cancel_game(callback.from_user.id)
     await callback.answer()

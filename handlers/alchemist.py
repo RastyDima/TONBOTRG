@@ -124,7 +124,7 @@ def lose_text(game) -> str:
     )
 
 
-@router.callback_query(F.data == "alchemist")
+@router.callback_query(F.data == "alchemist", StateFilter("*"))
 async def alchemist_menu(callback: CallbackQuery):
     await callback.answer()
     if registry.is_active(callback.from_user.id):
@@ -133,7 +133,7 @@ async def alchemist_menu(callback: CallbackQuery):
     await callback.message.edit_text(pick_text(None), reply_markup=ingredients_kb())
 
 
-@router.callback_query(F.data.startswith("alch_pick:"))
+@router.callback_query(F.data.startswith("alch_pick:"), StateFilter("*"))
 async def alchemist_pick(callback: CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
     idx = int(callback.data.split(":", 1)[1])
@@ -275,7 +275,7 @@ async def finish_mix(callback: CallbackQuery, game) -> None:
             pass
 
 
-@router.callback_query(F.data == "alch_cancel")
+@router.callback_query(F.data == "alch_cancel", StateFilter("*"))
 async def alchemist_cancel(callback: CallbackQuery):
     cancel_game(callback.from_user.id)
     await callback.answer()
