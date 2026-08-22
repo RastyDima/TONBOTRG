@@ -89,6 +89,29 @@ def start_heartbeat() -> asyncio.Task:
     return asyncio.create_task(heartbeat_loop())
 
 
+WEBHOOK_CHECK_INTERVAL = 5 * 60  # каждые 5 минут
+
+
+async def webhook_guard_loop(bot: Bot) -> None:
+    """Каждые 5 минут проверяет, что вебхук не был перехвачен."""
+    expected_url = WEBHOOK_URL.rstrip("/") + WEBHOOK_PATH
+    logging.info("Webhook guard: watching for %s (every %ds)", expected_url, WEBHOOK_CHECK_INTERVAL)
+    while True:
+        try:
+            await asyncio.sleep(WEBHOOK_CHECK_INTERVAL)
+            info = await bot.get_webhook_info()
+            current = info.url
+            if current and current != expected_url:
+                logging.critical("WEBHOOK HIJACKED! Current=%s, expected=%s — restoring!", current, expected_url)
+                await bot.set_webhook(expected_url, secret_token=WEBHOOK_SECRET, drop_pending_updates=True)
+                logging.critical("Webhook restored to %s", expected_url)
+            elif not current:
+                logging.warning("Webhook empty — re-setting to %s", expected_url)
+                await bot.set_webhook(expected_url, secret_token=WEBHOOK_SECRET, drop_pending_updates=True)
+        except Exception:
+            logging.exception("webhook guard error")
+
+
 class BlockedUserMiddleware(BaseMiddleware):
     """Перехватывает все апдейты от заблокированных пользователей."""
 
@@ -140,9 +163,10 @@ def build_app() -> web.Application:
         notify.set_bot(bot)
         app["reminder_task"] = start_reminder_loop()
         app["heartbeat_task"] = start_heartbeat()
+        app["webhook_guard_task"] = asyncio.create_task(webhook_guard_loop(bot))
 
     async def stop_background(app) -> None:
-        for key in ("reminder_task", "heartbeat_task"):
+        for key in ("reminder_task", "heartbeat_task", "webhook_guard_task"):
             task = app.get(key)
             if task:
                 task.cancel()
@@ -174,6 +198,7 @@ async def main() -> None:
         notify.set_bot(bot)
         reminder_task = start_reminder_loop()
         heartbeat_task = start_heartbeat()
+        guard_task = asyncio.create_task(webhook_guard_loop(bot))
 
         # Открываем порт для Render (health check), чтобы деплой считался живым,
         # а старый инстанс не конфликтовал с новым.
@@ -196,6 +221,7 @@ async def main() -> None:
         finally:
             reminder_task.cancel()
             heartbeat_task.cancel()
+            guard_task.cancel()
 
 
 if __name__ == "__main__":

@@ -4,8 +4,10 @@
 Вход: ADMIN_PANEL_USER / ADMIN_PANEL_PASSWORD (config.py).
 """
 import html
+import logging
 import secrets
 import time
+from collections import defaultdict
 
 from aiohttp import web
 
@@ -16,8 +18,27 @@ from games.mines import get_house_edge
 from utils.helpers import format_number, get_daily_bonus, get_weekly_bonus
 from utils.notify import send as notify_send
 
+log = logging.getLogger("webadmin")
+
 SESSION_TTL = 60 * 60 * 12  # 12 часов
 _sessions: dict[str, float] = {}  # token -> expires_at
+
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+LOGIN_RATE_LIMIT = 5
+LOGIN_RATE_WINDOW = 60  # секунд
+
+
+def _check_rate_limit(ip: str) -> bool:
+    now = time.time()
+    _login_attempts[ip] = [t for t in _login_attempts[ip] if now - t < LOGIN_RATE_WINDOW]
+    if len(_login_attempts[ip]) >= LOGIN_RATE_LIMIT:
+        return False
+    _login_attempts[ip].append(now)
+    return True
+
+
+def _log_admin(action: str, ip: str, detail: str = "") -> None:
+    log.warning("ADMIN %s from %s %s", action, ip, detail)
 
 _CSS = """
 * { box-sizing: border-box; }
@@ -291,6 +312,7 @@ async def players_page(request: web.Request) -> web.Response:
 async def give_coins(request: web.Request) -> web.Response:
     if not _auth_ok(request):
         return web.HTTPFound("/admin/login")
+    ip = request.remote or "unknown"
     form = await request.post()
     uid, amount = form.get("uid", ""), form.get("amount", "")
     try:
@@ -307,6 +329,7 @@ async def give_coins(request: web.Request) -> web.Response:
         amount = -amount
     db.add_balance(uid, amount, "admin", "Веб-админка: изменение баланса")
     latest = db.get_user(uid)
+    _log_admin("GIVE_COINS", ip, f"uid={uid} amount={amount} new_bal={latest['balance']}")
     if amount > 0:
         await notify_send(
             uid,
@@ -325,20 +348,24 @@ async def give_coins(request: web.Request) -> web.Response:
 async def block_user(request: web.Request) -> web.Response:
     if not _auth_ok(request):
         return web.HTTPFound("/admin/login")
+    ip = request.remote or "unknown"
     form = await request.post()
     uid = form.get("uid", "")
     if uid.isdigit():
         db.set_blocked(int(uid), True)
+        _log_admin("BLOCK", ip, f"uid={uid}")
     return web.HTTPFound("/admin")
 
 
 async def unblock_user(request: web.Request) -> web.Response:
     if not _auth_ok(request):
         return web.HTTPFound("/admin/login")
+    ip = request.remote or "unknown"
     form = await request.post()
     uid = form.get("uid", "")
     if uid.isdigit():
         db.set_blocked(int(uid), False)
+        _log_admin("UNBLOCK", ip, f"uid={uid}")
     return web.HTTPFound("/admin")
 
 
@@ -425,16 +452,19 @@ async def settings_page(request: web.Request) -> web.Response:
 async def reset_database(request: web.Request) -> web.Response:
     if not _auth_ok(request):
         return web.HTTPFound("/admin/login")
+    ip = request.remote or "unknown"
     form = await request.post()
     if (form.get("confirm", "") or "").strip().upper() != "СБРОС":
         return web.HTTPFound("/admin/settings")
     db.reset_database()
+    _log_admin("RESET_DB", ip, "DATABASE FULLY RESET")
     return web.HTTPFound("/admin/settings?resetted=1")
 
 
 async def save_settings(request: web.Request) -> web.Response:
     if not _auth_ok(request):
         return web.HTTPFound("/admin/login")
+    ip = request.remote or "unknown"
     form = await request.post()
 
     def _parse(name: str) -> float | None:
@@ -599,15 +629,22 @@ async def login_page(request: web.Request) -> web.Response:
 
 
 async def login(request: web.Request) -> web.Response:
+    ip = request.remote or "unknown"
     form = await request.post()
     user = form.get("user", "")
     password = form.get("pass", "")
+    if not _check_rate_limit(ip):
+        _log_admin("LOGIN_BLOCKED", ip, "rate limit exceeded")
+        body = _flash("Слишком много попыток. Подождите минуту.", ok=False) + _login_form()
+        return web.Response(text=_page("Вход", body, ""), content_type="text/html", charset="utf-8")
     if user == ADMIN_PANEL_USER and password == ADMIN_PANEL_PASSWORD:
         token = secrets.token_urlsafe(32)
         _sessions[token] = time.time() + SESSION_TTL
+        _log_admin("LOGIN_OK", ip, f"user={user}")
         resp = web.HTTPFound("/admin")
         _set_cookie(resp, token)
         return resp
+    _log_admin("LOGIN_FAIL", ip, f"user={user}")
     body = _flash("Неверный логин или пароль", ok=False) + _login_form()
     return web.Response(text=_page("Вход", body, ""), content_type="text/html", charset="utf-8")
 
