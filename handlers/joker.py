@@ -240,8 +240,13 @@ async def joker_cashout(callback: CallbackQuery):
         await callback.answer("Игра не найдена. Начните новую.", show_alert=True)
         return
     game, payout = result
-    await callback.answer(f"💰 Выигрыш: {format_number(payout)}")
-    await callback.message.edit_text(win_text(game), reply_markup=None)
+    await callback.answer()
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.message.answer(
+        f"💰 <b>Выигрыш: {format_number(payout)}</b> "
+        f"(+{format_number(payout - game.bet)})\n"
+        f"Множитель: {game.multiplier}x",
+    )
 
 
 @router.callback_query(F.data == "joker_cancel", StateFilter("*"))

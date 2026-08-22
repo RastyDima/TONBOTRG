@@ -225,9 +225,15 @@ async def mines_reveal(callback: CallbackQuery):
     if game.safe_revealed == game.safe_total:
         result = cashout_game(user_id)
         if result:
-            game, _ = result
-            await callback.answer("🎉 Всё поле безопасно!")
-            await callback.message.edit_text(win_text(game), reply_markup=None)
+            game, payout = result
+            await callback.answer()
+            await callback.message.edit_reply_markup(reply_markup=None)
+            await callback.message.answer(
+                f"🎉 <b>Всё поле безопасно!</b>\n"
+                f"💰 Выигрыш: <b>{format_number(payout)}</b> "
+                f"(+{format_number(payout - game.bet)})\n"
+                f"Множитель: {game.multiplier}x",
+            )
         return
     await callback.answer(f"Множитель: {game.multiplier}x")
     await callback.message.edit_text(field_text(game), reply_markup=field_kb(game))
@@ -240,8 +246,13 @@ async def mines_cashout(callback: CallbackQuery):
         await callback.answer("Игра не найдена. Начните новую.", show_alert=True)
         return
     game, payout = result
-    await callback.answer(f"💰 Выигрыш: {format_number(payout)}")
-    await callback.message.edit_text(win_text(game), reply_markup=None)
+    await callback.answer()
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.message.answer(
+        f"💰 <b>Выигрыш: {format_number(payout)}</b> "
+        f"(+{format_number(payout - game.bet)})\n"
+        f"Множитель: {game.multiplier}x",
+    )
 
 
 @router.callback_query(F.data == "mines_cancel", StateFilter("*"))
