@@ -107,8 +107,9 @@ async def ruby_roulette_process_bet(message: Message, state: FSMContext):
     )
 
 
-@router.callback_query(F.data.startswith("rr_pick:"))
-async def ruby_roulette_pick(callback: CallbackQuery):
+@router.callback_query(F.data.startswith("rr_pick:"), StateFilter("*"))
+async def ruby_roulette_pick(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     user_id = callback.from_user.id
     game = registry.game(user_id)
     if not game or game.type != "ruby_roulette":
