@@ -244,6 +244,7 @@ def _player_row(u: dict) -> str:
     toggle = "Разблокировать" if u["is_blocked"] else "Заблокировать"
     toggle_url = "/admin/unblock" if u["is_blocked"] else "/admin/block"
     toggle_cls = "ghost" if u["is_blocked"] else "danger"
+    rubies = u.get('rubies', 0) or 0
     return f"""<tr>
 <td>
   <div class="p-name">
@@ -251,7 +252,7 @@ def _player_row(u: dict) -> str:
     <div class="txt"><b>{html.escape(name)}</b><span>{html.escape(nick)}</span></div>
   </div>
 </td>
-<td class="balance-cell">{format_number(u['balance'])}</td>
+<td class="balance-cell">{format_number(u['balance'])}<br><small>💎 {rubies}</small></td>
 <td>{blocked}</td>
 <td>
   <form class="amount-form" method="post" action="/admin/give">

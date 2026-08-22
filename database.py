@@ -38,6 +38,7 @@ class Database:
                     username TEXT,
                     first_name TEXT,
                     balance INTEGER NOT NULL DEFAULT 0,
+                    rubies REAL NOT NULL DEFAULT 0,
                     is_blocked INTEGER NOT NULL DEFAULT 0,
                     is_admin INTEGER NOT NULL DEFAULT 0,
                     last_daily TEXT,
@@ -200,6 +201,13 @@ class Database:
             conn.execute(
                 "INSERT INTO transactions (user_id, amount, type, description) VALUES (?, ?, ?, ?)",
                 (user_id, amount, txn_type, description),
+            )
+
+    def add_rubies(self, user_id: int, amount: float) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "UPDATE users SET rubies = rubies + ? WHERE id = ?",
+                (amount, user_id),
             )
 
     # ---------- Транзакции ----------
@@ -564,6 +572,7 @@ class PostgresDatabase:
                     username TEXT,
                     first_name TEXT,
                     balance BIGINT NOT NULL DEFAULT 0,
+                    rubies DOUBLE PRECISION NOT NULL DEFAULT 0,
                     is_blocked INTEGER NOT NULL DEFAULT 0,
                     is_admin INTEGER NOT NULL DEFAULT 0,
                     last_daily TEXT,
@@ -730,6 +739,13 @@ class PostgresDatabase:
             cur.execute(
                 "INSERT INTO transactions (user_id, amount, type, description) VALUES (%s, %s, %s, %s)",
                 (user_id, amount, txn_type, description),
+            )
+
+    def add_rubies(self, user_id: int, amount: float) -> None:
+        with self._cursor() as cur:
+            cur.execute(
+                "UPDATE users SET rubies = rubies + %s WHERE id = %s",
+                (amount, user_id),
             )
 
     # ---------- Транзакции ----------

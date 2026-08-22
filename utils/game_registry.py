@@ -60,6 +60,9 @@ def cashout_game(user_id: int):
     payout = game.payout
     label = GAME_LABELS.get(entry["type"], entry["type"])
     db.add_balance(user_id, payout, "game_win", f"Выигрыш в игре {label}")
+    if payout >= 50000:
+        rubies = round(payout / 50000 * 0.1, 2)
+        db.add_rubies(user_id, rubies)
     registry.release(user_id)
     db.add_game(user_id, entry["type"], game.bet, payout, "win")
     db.update_stats(user_id, "win", game.bet, payout)

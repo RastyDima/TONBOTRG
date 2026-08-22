@@ -93,10 +93,11 @@ def menu_text(user: dict) -> str:
 
 
 def balance_text(user: dict) -> str:
+    rubies = user.get('rubies', 0) or 0
     return (
         f"💰 <b>Баланс</b>\n\n"
         f"💳 Монеты: <b>{format_number(user['balance'])}</b>\n"
-        f"💎 Рубины: <b>х</b> <i>(скоро)</i>\n\n"
+        f"💎 Рубины: <b>{rubies}</b>\n\n"
         f"💸 Перевести: ответьте на сообщение игрока — <code>п 12000</code>\n"
         f"📲 Быстрый запрос: просто напишите <code>б</code> в чате"
     )
@@ -105,11 +106,13 @@ def balance_text(user: dict) -> str:
 def profile_text(user: dict, stats: dict) -> str:
     total = stats["total_games"]
     winrate = round(stats["wins"] * 100 / total, 1) if total else 0
+    rubies = user.get('rubies', 0) or 0
     return (
         f"👤 <b>Профиль</b>\n"
         f"🆔 ID: <code>{user['id']}</code>\n"
         f"👤 Имя: {html.escape(str(user['first_name'] or 'Игрок'))}\n"
-        f"💳 Баланс: <b>{format_number(user['balance'])}</b> монет\n\n"
+        f"💳 Баланс: <b>{format_number(user['balance'])}</b> монет\n"
+        f"💎 Рубины: <b>{rubies}</b>\n\n"
         f"📊 <b>Общая статистика</b>\n"
         f"🎮 Игр сыграно: {total}\n"
         f"✅ Побед: {stats['wins']}\n"
