@@ -9,7 +9,7 @@ from utils.game_registry import clear_pending_bet
 router = Router()
 
 
-@router.callback_query(F.data == "noop")
+@router.callback_query(F.data == "noop", StateFilter("*"))
 async def noop_callback(callback: CallbackQuery):
     await callback.answer()
 
