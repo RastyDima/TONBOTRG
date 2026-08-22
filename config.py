@@ -4,7 +4,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 
 # Токен бота из переменной окружения или вставьте сюда
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8857900559:AAE2WVuuCQ6VbZUsvi9O3GNjanMkjg9h2Uw")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8857900559:AAH-vpzeiCfuSYfp5TqAtQXaKM2uIvG8zyI")
 
 # ID администраторов (через запятую)
 ADMIN_IDS = [
