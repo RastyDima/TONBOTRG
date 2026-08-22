@@ -20,6 +20,8 @@ PROMO_CODE_RE = r"[A-Za-z0-9_-]{1,32}"
 class AdminStates(StatesGroup):
     give_user = State()
     give_amount = State()
+    give_rubies_user = State()
+    give_rubies_amount = State()
     block_user = State()
     unblock_user = State()
 
@@ -115,6 +117,60 @@ async def admin_give_amount(message: Message, state: FSMContext):
         f"💳 Баланс: {format_number(latest['balance'])}",
     )
     await message.answer(f"✅ Игроку <b>{user_label(target)}</b> начислено {format_number(amount)} TON.")
+
+
+@router.callback_query(F.data == "admin_give_rubies", StateFilter("*"))
+async def admin_give_rubies_start(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(AdminStates.give_rubies_user)
+    await callback.answer()
+    await callback.message.edit_text(
+        "💎 <b>Выдача рубинов</b>\n\nОтправьте ID или @username игрока:",
+        reply_markup=cancel_kb(),
+    )
+
+
+@router.message(AdminStates.give_rubies_user)
+async def admin_give_rubies_user(message: Message, state: FSMContext):
+    user = resolve_user(message.text)
+    if not user:
+        await message.answer("❌ Пользователь не найден. Попробуйте ещё раз:")
+        return
+    await state.update_data(target_id=user["id"])
+    await state.set_state(AdminStates.give_rubies_amount)
+    await message.answer(
+        f"Игрок: <b>{user_label(user)}</b> (ID: <code>{user['id']}</code>)\n\n"
+        f"💎 Текущие рубины: {user.get('rubies', 0) or 0}\n\n"
+        f"Введите количество рубинов:"
+    )
+
+
+@router.message(AdminStates.give_rubies_amount)
+async def admin_give_rubies_amount(message: Message, state: FSMContext):
+    data = await state.get_data()
+    target_id = data.get("target_id")
+    text = (message.text or "").strip().replace(" ", "").replace(",", ".")
+    try:
+        amount = float(text)
+    except ValueError:
+        await message.answer("❌ Некорректная сумма. Введите число:")
+        return
+    if amount < 0 or amount > 1_000_000:
+        await message.answer("❌ Некорректная сумма.")
+        return
+    target = db.get_user(target_id)
+    if not target:
+        await state.clear()
+        await message.answer("❌ Пользователь не найден.")
+        return
+    db.add_rubies(target_id, amount)
+    await state.clear()
+    latest = db.get_user(target_id)
+    await notify_send(
+        target_id,
+        f"💎 <b>Вам начислено {amount} рубинов</b>\n\n"
+        f"💎 Рубины: {latest.get('rubies', 0) or 0}",
+    )
+    await message.answer(f"✅ Игроку <b>{user_label(target)}</b> начислено {amount} 💎")
 
 
 @router.callback_query(F.data == "admin_block", StateFilter("*"))

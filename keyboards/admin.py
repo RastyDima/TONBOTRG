@@ -5,7 +5,8 @@ from keyboards.common import back_button
 
 def admin_menu():
     kb = InlineKeyboardBuilder()
-    kb.button(text="💰 Выдать валюту", callback_data="admin_give")
+    kb.button(text="💰 Выдать TON", callback_data="admin_give")
+    kb.button(text="💎 Выдать рубины", callback_data="admin_give_rubies")
     kb.button(text="🎟 Промокоды", callback_data="admin_promos")
     kb.button(text="🚫 Заблокировать", callback_data="admin_block")
     kb.button(text="✅ Разблокировать", callback_data="admin_unblock")

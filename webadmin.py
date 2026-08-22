@@ -252,14 +252,21 @@ def _player_row(u: dict) -> str:
     <div class="txt"><b>{html.escape(name)}</b><span>{html.escape(nick)}</span></div>
   </div>
 </td>
-<td class="balance-cell">{format_number(u['balance'])}<br><small>💎 {rubies}</small></td>
+<td class="balance-cell">{format_number(u['balance'])}</td>
+<td class="balance-cell">💎 {rubies}</td>
 <td>{blocked}</td>
 <td>
   <form class="amount-form" method="post" action="/admin/give">
     <input type="hidden" name="uid" value="{u['id']}">
     <input type="number" name="amount" value="1000" min="1">
-    <button class="btn btn-success btn-sm" title="Начислить">+</button>
-    <button class="btn btn-danger btn-sm" name="neg" value="1" title="Списать">−</button>
+    <button class="btn btn-success btn-sm" title="Начислить TON">+</button>
+    <button class="btn btn-danger btn-sm" name="neg" value="1" title="Списать TON">−</button>
+  </form>
+  <form class="amount-form" method="post" action="/admin/give_rubies">
+    <input type="hidden" name="uid" value="{u['id']}">
+    <input type="number" name="amount" value="1" min="0.1" step="0.1">
+    <button class="btn btn-success btn-sm" title="Начислить рубины">💎+</button>
+    <button class="btn btn-danger btn-sm" name="neg" value="1" title="Списать рубины">💎−</button>
   </form>
 </td>
 <td>
@@ -301,9 +308,9 @@ async def players_page(request: web.Request) -> web.Response:
 </form>
 <div class="card" style="padding:0">
   <div class="table-wrap"><table>
-  <thead><tr><th>Игрок</th><th>Баланс</th><th>Статус</th><th>Выдать / списать</th><th>Действия</th></tr></thead>
+  <thead><tr><th>Игрок</th><th>Баланс (TON)</th><th>Рубины</th><th>Статус</th><th>Выдать / списать</th><th>Действия</th></tr></thead>
   <tbody>
-  {''.join(_player_row(u) for u in users) or '<tr><td colspan="5" style="text-align:center;padding:32px;color:#8a95b3">Никого не найдено</td></tr>'}
+  {''.join(_player_row(u) for u in users) or '<tr><td colspan="6" style="text-align:center;padding:32px;color:#8a95b3">Никого не найдено</td></tr>'}
   </tbody>
   </table></div>
 </div>"""
@@ -342,6 +349,42 @@ async def give_coins(request: web.Request) -> web.Response:
             uid,
             f"⚠️ С вашего счёта списано {format_number(-amount)} TON\n\n"
             f"💳 Баланс: {format_number(latest['balance'])}",
+        )
+    return web.HTTPFound("/admin")
+
+
+async def give_rubies(request: web.Request) -> web.Response:
+    if not _auth_ok(request):
+        return web.HTTPFound("/admin/login")
+    ip = request.remote or "unknown"
+    form = await request.post()
+    uid, amount = form.get("uid", ""), form.get("amount", "")
+    try:
+        uid = int(uid)
+        amount = float(amount)
+    except (TypeError, ValueError):
+        return web.HTTPFound("/admin")
+    if amount <= 0 or amount > 1_000_000:
+        return web.HTTPFound("/admin")
+    user = db.get_user(uid)
+    if not user:
+        return web.HTTPFound("/admin")
+    if form.get("neg"):
+        amount = -amount
+    db.add_rubies(uid, amount)
+    latest = db.get_user(uid)
+    _log_admin("GIVE_RUBIES", ip, f"uid={uid} amount={amount} new_rubies={latest.get('rubies', 0)}")
+    if amount > 0:
+        await notify_send(
+            uid,
+            f"💎 <b>Вам начислено {amount} рубинов</b>\n\n"
+            f"💎 Рубины: {latest.get('rubies', 0) or 0}",
+        )
+    else:
+        await notify_send(
+            uid,
+            f"⚠️ Списано {abs(amount)} рубинов\n\n"
+            f"💎 Рубины: {latest.get('rubies', 0) or 0}",
         )
     return web.HTTPFound("/admin")
 
@@ -665,6 +708,7 @@ def register_admin_routes(app: web.Application) -> None:
     app.router.add_get("/admin/login", login_page)
     app.router.add_post("/admin/login", login)
     app.router.add_post("/admin/give", give_coins)
+    app.router.add_post("/admin/give_rubies", give_rubies)
     app.router.add_post("/admin/block", block_user)
     app.router.add_post("/admin/unblock", unblock_user)
     app.router.add_get("/admin/settings", settings_page)
