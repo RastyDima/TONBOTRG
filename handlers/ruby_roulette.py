@@ -1,4 +1,5 @@
 from aiogram import Router, F
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
@@ -11,8 +12,6 @@ from utils.game_registry import registry
 from utils.helpers import format_number
 
 router = Router()
-
-ROULETTE_COMMANDS = ("ру", "рулетка", "roulette")
 
 
 class RubyRouletteStates(StatesGroup):
@@ -49,10 +48,9 @@ def result_text(game: RubyRouletteGame, user_rubies: float) -> str:
     )
 
 
-@router.callback_query(F.data == "ruby_roulette")
+@router.callback_query(F.data == "ruby_roulette", StateFilter("*"))
 async def ruby_roulette_menu(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    await callback.answer()
     if registry.is_active(callback.from_user.id):
         await callback.answer("Сначала завершите текущую игру!", show_alert=True)
         return
@@ -62,6 +60,7 @@ async def ruby_roulette_menu(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ У вас нет рубинов. Получите их за крупные выигрыши!", show_alert=True)
         return
     await state.set_state(RubyRouletteStates.bet)
+    await callback.answer()
     await callback.message.edit_text(
         f"🎰 <b>Рубиновая рулетка</b>\n\n"
         f"💎 Ваши рубины: <b>{rubies}</b>\n\n"
