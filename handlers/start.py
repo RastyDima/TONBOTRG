@@ -25,7 +25,7 @@ async def cmd_start(message: Message):
     else:
         text = (
             f"👋 <b>Добро пожаловать, {name}!</b>\n\n"
-            f"🎁 За регистрацию начислено {format_number(STARTING_BALANCE)} монет.\n\n"
+            f"🎁 За регистрацию начислено {format_number(STARTING_BALANCE)} TON.\n\n"
             f"Выберите действие в меню:"
         )
     is_admin = user.id in ADMIN_IDS or bool(db.get_user(user.id)["is_admin"])
@@ -74,7 +74,7 @@ async def shop_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         "🛒 <b>Магазин</b>\n\n"
         "🔐 Раздел ещё закрыт и откроется совсем скоро.\n\n"
-        "Здесь появятся скины, аватарки и другие вкусности за монеты.",
+        "Здесь появятся скины, аватарки и другие вкусности за TON.",
         reply_markup=back_to_menu_markup(),
     )
 

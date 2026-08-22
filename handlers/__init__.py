@@ -1,4 +1,4 @@
-from . import admin, alchemist, economy, games, joker, mines, profile, promo, rating, start
+from . import admin, alchemist, economy, games, joker, mines, profile, promo, rating, ruby_roulette, start
 
 
 def register_handlers(dp) -> None:
@@ -12,6 +12,7 @@ def register_handlers(dp) -> None:
         mines.router,
         joker.router,
         alchemist.router,
+        ruby_roulette.router,
         admin.router,
     ):
         dp.include_router(router)

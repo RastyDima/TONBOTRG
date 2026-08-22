@@ -42,7 +42,7 @@ async def reminder_loop() -> None:
                 await notify.send(
                     u["id"],
                     f"🎁 <b>Ежедневный бонус доступен!</b>\n\n"
-                    f"Заберите {format_number(daily_amount)} монет, нажав кнопку ниже.",
+                    f"Заберите {format_number(daily_amount)} TON, нажав кнопку ниже.",
                     _bonus_kb("daily"),
                 )
                 db.mark_daily_notified(u["id"])
@@ -51,7 +51,7 @@ async def reminder_loop() -> None:
                 await notify.send(
                     u["id"],
                     f"🗓 <b>Еженедельный бонус доступен!</b>\n\n"
-                    f"Вы можете получить {format_number(weekly_amount)} монет — нажмите кнопку ниже.",
+                    f"Вы можете получить {format_number(weekly_amount)} TON — нажмите кнопку ниже.",
                     _bonus_kb("weekly"),
                 )
                 db.mark_weekly_notified(u["id"])

@@ -42,7 +42,7 @@ async def daily_command(message: Message):
     ok = db.claim_daily(message.from_user.id, get_daily_bonus())
     if ok:
         await message.answer(
-            f"🎁 <b>Ежедневный бонус</b>\n\nВы получили {format_number(get_daily_bonus())} монет!",
+            f"🎁 <b>Ежедневный бонус</b>\n\nВы получили {format_number(get_daily_bonus())} TON!",
             reply_markup=back_kb(),
         )
     else:
@@ -58,7 +58,7 @@ async def daily_callback(callback: CallbackQuery, state: FSMContext):
     ok = db.claim_daily(callback.from_user.id, get_daily_bonus())
     if ok:
         await callback.message.edit_text(
-            f"🎁 <b>Ежедневный бонус</b>\n\nВы получили {format_number(get_daily_bonus())} монет!",
+            f"🎁 <b>Ежедневный бонус</b>\n\nВы получили {format_number(get_daily_bonus())} TON!",
             reply_markup=back_kb(),
         )
     else:
@@ -72,7 +72,7 @@ async def weekly_command(message: Message):
     ok = db.claim_weekly(message.from_user.id, get_weekly_bonus())
     if ok:
         await message.answer(
-            f"🗓 <b>Еженедельный бонус</b>\n\nВы получили {format_number(get_weekly_bonus())} монет!",
+            f"🗓 <b>Еженедельный бонус</b>\n\nВы получили {format_number(get_weekly_bonus())} TON!",
             reply_markup=back_kb(),
         )
     else:
@@ -89,7 +89,7 @@ async def weekly_callback(callback: CallbackQuery, state: FSMContext):
     ok = db.claim_weekly(callback.from_user.id, get_weekly_bonus())
     if ok:
         await callback.message.edit_text(
-            f"🗓 <b>Еженедельный бонус</b>\n\nВы получили {format_number(get_weekly_bonus())} монет!",
+            f"🗓 <b>Еженедельный бонус</b>\n\nВы получили {format_number(get_weekly_bonus())} TON!",
             reply_markup=back_kb(),
         )
     else:
@@ -164,10 +164,10 @@ async def transfer_money(message: Message, state: FSMContext):
     await notify_send(
         receiver.id,
         f"💸 <b>Перевод получен</b>\n\n"
-        f"Игрок {sender.full_name} перевёл вам <b>{format_number(amount)}</b> монет.\n"
+        f"Игрок {sender.full_name} перевёл вам <b>{format_number(amount)}</b> TON.\n"
         f"💳 Баланс: {format_number(latest['balance'])}",
     )
     await message.answer(
-        f"✅ Переведено <b>{format_number(amount)}</b> монет игроку {receiver.full_name}.\n"
+        f"✅ Переведено <b>{format_number(amount)}</b> TON игроку {receiver.full_name}.\n"
         f"💰 Ваш баланс: {format_number(sender_db['balance'] - amount)}"
     )

@@ -291,7 +291,7 @@ async def players_page(request: web.Request) -> web.Response:
 
     body = f"""
 <div class="page-title">👥 Игроки</div>
-<div class="page-sub">{'Результаты по запросу «' + html.escape(q) + '»' if q else 'База игроков бота. Нажмите + или − для выдачи / списания монет.'}</div>
+<div class="page-sub">{'Результаты по запросу «' + html.escape(q) + '»' if q else 'База игроков бота. Нажмите + или − для выдачи / списания TON.'}</div>
 <div class="strip">{strip}</div>
 <form class="card" method="get" action="/admin">
   <div class="search-row">
@@ -334,13 +334,13 @@ async def give_coins(request: web.Request) -> web.Response:
     if amount > 0:
         await notify_send(
             uid,
-            f"💰 <b>Вам начислено {format_number(amount)} монет</b>\n\n"
+            f"💰 <b>Вам начислено {format_number(amount)} TON</b>\n\n"
             f"💳 Баланс: {format_number(latest['balance'])}",
         )
     else:
         await notify_send(
             uid,
-            f"⚠️ С вашего счёта списано {format_number(-amount)} монет\n\n"
+            f"⚠️ С вашего счёта списано {format_number(-amount)} TON\n\n"
             f"💳 Баланс: {format_number(latest['balance'])}",
         )
     return web.HTTPFound("/admin")
@@ -539,14 +539,14 @@ async def promos_page(request: web.Request) -> web.Response:
     promos = db.list_promos()
     body = f"""
 <div class="page-title">🎟 Промокоды</div>
-<div class="page-sub">Игрок вводит код сообщением вида <code>#КОД</code> — и получает монеты. Лимит активаций считается на всех игроков.</div>
+<div class="page-sub">Игрок вводит код сообщением вида <code>#КОД</code> — и получает TON. Лимит активаций считается на всех игроков.</div>
 
 <form class="card" method="post" action="/admin/promos/create">
   <h2>➕ Новый промокод</h2>
   <p class="hint">В коде только буквы, цифры, _ и - (до 32 символов). Игрок пишет <code>#КОД</code> в чат бота.</p>
   <div class="settings-grid">
     <div>{_field("code", "Код", "", "1", "1", "1", "Используйте заглавные буквы/цифры, например HELLO100", itype="text")}</div>
-    <div>{_field("amount", "Сумма монет", 1000, "1", "1", "1000000000000", "Сколько монет получит игрок за активацию.")}</div>
+    <div>{_field("amount", "Сумма TON", 1000, "1", "1", "1000000000000", "Сколько TON получит игрок за активацию.")}</div>
     <div>{_field("max_uses", "Максимум активаций", 1, "1", "1", "1000000", "Сколько раз всего можно активировать промокод.")}</div>
   </div>
   <button class="btn btn-primary">🎟 Создать промокод</button>

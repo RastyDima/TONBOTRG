@@ -20,7 +20,7 @@ async def promo_redeem(message: Message, state: FSMContext):
     texts = {
         "ok": (
             f"🎟 <b>Промокод активирован!</b>\n\n"
-            f"Вы получили {format_number(amount)} монет!"
+            f"Вы получили {format_number(amount)} TON!"
         ),
         "not_found": "❌ Промокод не найден.",
         "inactive": "❌ Этот промокод неактивен.",

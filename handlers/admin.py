@@ -111,10 +111,10 @@ async def admin_give_amount(message: Message, state: FSMContext):
     latest = db.get_user(target_id)
     await notify_send(
         target_id,
-        f"💰 <b>Вам начислено {format_number(amount)} монет</b>\n\n"
+        f"💰 <b>Вам начислено {format_number(amount)} TON</b>\n\n"
         f"💳 Баланс: {format_number(latest['balance'])}",
     )
-    await message.answer(f"✅ Игроку <b>{user_label(target)}</b> начислено {format_number(amount)} монет.")
+    await message.answer(f"✅ Игроку <b>{user_label(target)}</b> начислено {format_number(amount)} TON.")
 
 
 @router.callback_query(F.data == "admin_block", StateFilter("*"))
@@ -167,11 +167,11 @@ async def admin_stats(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         f"📊 <b>Статистика бота</b>\n\n"
         f"👥 Пользователей: {data['users']}\n"
-        f"💰 Суммарный баланс: {format_number(data['balance'])}\n"
+        f"💰 Суммарный баланс: {format_number(data['balance'])} TON\n"
         f"🎮 Всего игр: {data['games']}\n"
         f"✅ Побед: {data['wins']}\n"
         f"📜 Транзакций: {data['tx_count']}\n"
-        f"💸 Оборот: {format_number(data['tx_volume'])}",
+        f"💸 Оборот: {format_number(data['tx_volume'])} TON",
         reply_markup=kb.as_markup(),
     )
 
@@ -221,7 +221,7 @@ def promos_view() -> tuple[str, object]:
     for p in promos:
         state = "✅" if p["is_active"] else "⛔"
         lines.append(
-            f"{state} <code>{p['code']}</code> · {format_number(p['amount'])} монет · "
+            f"{state} <code>{p['code']}</code> · {format_number(p['amount'])} TON · "
             f"{p['used_count']}/{p['max_uses']} активаций"
         )
     text = "\n".join(lines)
@@ -256,7 +256,7 @@ async def promo_info(callback: CallbackQuery, state: FSMContext):
     state_label = "активен" if p["is_active"] else "неактивен"
     text = (
         f"🎟 <b>Промокод {p['code']}</b>\n\n"
-        f"💰 Сумма: {format_number(p['amount'])} монет\n"
+        f"💰 Сумма: {format_number(p['amount'])} TON\n"
         f"🔢 Активаций: {p['used_count']}/{p['max_uses']}\n"
         f"📌 Статус: {state_label}\n"
         f"📅 Создан: {p['created_at']}"
@@ -315,7 +315,7 @@ async def promo_create_code(message: Message, state: FSMContext):
         return
     await state.update_data(promo_code=code.upper())
     await state.set_state(AdminPromoStates.amount)
-    await message.answer("💵 Введите сумму монет за активацию:")
+    await message.answer("💵 Введите сумму TON за активацию:")
 
 
 @router.message(AdminPromoStates.amount)
@@ -349,7 +349,7 @@ async def promo_create_max_uses(message: Message, state: FSMContext):
     if ok:
         await message.answer(
             f"✅ Промокод <code>#{data['promo_code']}</code> создан:\n"
-            f"💰 {format_number(data['promo_amount'])} монет · 🔢 {max_uses} активаций"
+            f"💰 {format_number(data['promo_amount'])} TON · 🔢 {max_uses} активаций"
         )
     else:
         await message.answer(
