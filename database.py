@@ -656,6 +656,9 @@ class PostgresDatabase:
             cur.execute(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_earned BIGINT NOT NULL DEFAULT 0"
             )
+            cur.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS rubies DOUBLE PRECISION NOT NULL DEFAULT 0"
+            )
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS promos (
                     id BIGSERIAL PRIMARY KEY,
