@@ -5,6 +5,7 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 import aiohttp
+import logging
 
 from config import BOT_TOKEN
 from database import db
@@ -13,6 +14,7 @@ from utils.helpers import balance_text
 from utils.profile_card import generate_profile_card
 
 router = Router()
+log = logging.getLogger(__name__)
 
 
 def profile_kb():
@@ -31,10 +33,12 @@ def balance_kb():
 
 async def _get_avatar(user_id: int) -> bytes | None:
     try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUserProfilePhotos"
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUserProfilePhotos"
             async with session.get(url, params={"user_id": user_id, "limit": 1}) as resp:
                 data = await resp.json()
+                log.info("getUserProfilePhotos for %s: ok=%s, count=%s", user_id, data.get("ok"), len(data.get("result", {}).get("photos", [])) if data.get("ok") else "N/A")
                 if not data.get("ok") or not data["result"]["photos"]:
                     return None
                 photo = data["result"]["photos"][0][-1]
@@ -42,14 +46,20 @@ async def _get_avatar(user_id: int) -> bytes | None:
             url2 = f"https://api.telegram.org/bot{BOT_TOKEN}/getFile"
             async with session.get(url2, params={"file_id": file_id}) as resp2:
                 data2 = await resp2.json()
+                log.info("getFile for %s: ok=%s", file_id[:20], data2.get("ok"))
                 if not data2.get("ok"):
                     return None
                 file_path = data2["result"]["file_path"]
             file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
             async with session.get(file_url) as resp3:
+                log.info("download %s: status=%s", file_path, resp3.status)
                 if resp3.status == 200:
-                    return await resp3.read()
-    except Exception:
+                    avatar = await resp3.read()
+                    log.info("avatar downloaded: %d bytes", len(avatar))
+                    return avatar
+                return None
+    except Exception as e:
+        log.warning("Failed to get avatar for %s: %s", user_id, e)
         return None
 
 
