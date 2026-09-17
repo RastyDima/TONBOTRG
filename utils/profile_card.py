@@ -286,18 +286,19 @@ def generate_profile_card(
         draw.text((240 * SCALE, ry), val, fill=vc, font=f_stat_val)
 
     # Winrate progress bar
-    bar_y = sy2 + 148 * SCALE
+    bar_label_y = sy2 + 140 * SCALE
+    bar_y = sy2 + 160 * SCALE
     bar_x = 56 * SCALE
     bar_w = W - 112 * SCALE
-    bar_h = 14 * SCALE
-    draw.text((bar_x, bar_y - 16 * SCALE), "Винрейт", fill=PURPLE, font=f_stat_label)
-    draw.text((bar_x + bar_w - 70 * SCALE, bar_y - 16 * SCALE), f"{winrate}%", fill=PURPLE2, font=f_stat_val)
-    draw.rounded_rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + bar_h], radius=7 * SCALE, fill=(30, 24, 55))
+    bar_h = 12 * SCALE
+    draw.text((bar_x, bar_label_y), "Винрейт", fill=PURPLE, font=f_stat_label)
+    draw.text((bar_x + bar_w - 70 * SCALE, bar_label_y), f"{winrate}%", fill=PURPLE2, font=f_stat_val)
+    draw.rounded_rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + bar_h], radius=6 * SCALE, fill=(30, 24, 55))
     if winrate > 0:
         fw = max(bar_h, int(bar_w * min(winrate, 100) / 100))
         _gradient_h(img, (bar_x, bar_y, bar_x + fw, bar_y + bar_h), PURPLE, PINK2)
         draw = ImageDraw.Draw(img)
-        draw.rounded_rectangle([bar_x, bar_y, bar_x + fw, bar_y + bar_h], radius=7 * SCALE, fill=PURPLE)
+        draw.rounded_rectangle([bar_x, bar_y, bar_x + fw, bar_y + bar_h], radius=6 * SCALE, fill=PURPLE)
 
     # Financial stats
     fin_y = bar_y + bar_h + 24 * SCALE
