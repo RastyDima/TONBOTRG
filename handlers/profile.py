@@ -1,7 +1,7 @@
 from aiogram import Router, F
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, InputFile, Message
+from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from database import db
@@ -26,15 +26,8 @@ def balance_kb():
     return kb.as_markup()
 
 
-@router.message(Command("profile"))
-async def profile_command(message: Message):
-    user = db.get_user(message.from_user.id)
-    if not user:
-        await message.answer("Сначала нажмите /start")
-        return
-    stats = db.get_stats(message.from_user.id)
-    ref_count = user.get("referral_count", 0) or 0
-    card = generate_profile_card(
+def _make_card(user, stats, ref_count):
+    card_buf = generate_profile_card(
         user_id=user["id"],
         name=user["first_name"] or "Игрок",
         balance=user["balance"],
@@ -46,7 +39,30 @@ async def profile_command(message: Message):
         total_won=stats["total_won"],
         ref_count=ref_count,
     )
-    await message.answer_photo(photo=InputFile(card), reply_markup=profile_kb())
+    return ("profile.png", card_buf.getvalue())
+
+
+@router.message(Command("profile"))
+async def profile_command(message: Message):
+    user = db.get_user(message.from_user.id)
+    if not user:
+        await message.answer("Сначала нажмите /start")
+        return
+    stats = db.get_stats(message.from_user.id)
+    ref_count = user.get("referral_count", 0) or 0
+    filename, photo_bytes = _make_card(user, stats, ref_count)
+    from aiogram.types import FSInputFile
+    import tempfile, os
+    tmp = os.path.join(tempfile.gettempdir(), filename)
+    with open(tmp, "wb") as f:
+        f.write(photo_bytes)
+    try:
+        await message.answer_photo(photo=FSInputFile(tmp), reply_markup=profile_kb())
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
 
 
 @router.callback_query(F.data == "profile", StateFilter("*"))
@@ -59,23 +75,23 @@ async def profile_callback(callback: CallbackQuery, state: FSMContext):
         return
     stats = db.get_stats(callback.from_user.id)
     ref_count = user.get("referral_count", 0) or 0
-    card = generate_profile_card(
-        user_id=user["id"],
-        name=user["first_name"] or "Игрок",
-        balance=user["balance"],
-        rubies=user.get("rubies", 0) or 0,
-        total_games=stats["total_games"],
-        wins=stats["wins"],
-        losses=stats["losses"],
-        total_bet=stats["total_bet"],
-        total_won=stats["total_won"],
-        ref_count=ref_count,
-    )
+    filename, photo_bytes = _make_card(user, stats, ref_count)
+    from aiogram.types import FSInputFile
+    import tempfile, os
+    tmp = os.path.join(tempfile.gettempdir(), filename)
+    with open(tmp, "wb") as f:
+        f.write(photo_bytes)
     try:
-        await callback.message.delete()
-    except Exception:
-        pass
-    await callback.message.answer_photo(photo=InputFile(card), reply_markup=profile_kb())
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer_photo(photo=FSInputFile(tmp), reply_markup=profile_kb())
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
 
 
 @router.callback_query(F.data == "balance", StateFilter("*"))
