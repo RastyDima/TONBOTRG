@@ -1,30 +1,42 @@
-"""Генератор профиль-карточки с помощью Pillow."""
+"""Генератор профиль-карточки с помощью Pillow (без эмодзи)."""
 import io
 import os
 from PIL import Image, ImageDraw, ImageFont
 
-CARD_W, CARD_H = 600, 400
+SCALE = 2
+CARD_W, CARD_H = 600 * SCALE, 420 * SCALE
 BG_COLOR = (18, 18, 30)
 ACCENT = (120, 80, 255)
 GOLD = (255, 200, 50)
 WHITE = (255, 255, 255)
 GRAY = (140, 140, 160)
 DARK_BG = (24, 24, 42)
+PINK = (255, 100, 150)
+CYAN = (100, 200, 255)
+GREEN = (80, 220, 120)
+RED = (255, 80, 80)
 
 FONT_DIR = os.path.join(os.path.dirname(__file__), "..", "assets")
 
 
-def _get_font(size: int) -> ImageFont.FreeTypeFont:
-    for name in ("DejaVuSans-Bold.ttf", "DejaVuSans.ttf", "arialbd.ttf", "arial.ttf"):
+def _font(size: int) -> ImageFont.FreeTypeFont:
+    for name in ("arialbd.ttf", "arial.ttf"):
         path = os.path.join(FONT_DIR, name)
         if os.path.exists(path):
-            return ImageFont.truetype(path, size)
+            return ImageFont.truetype(path, size * SCALE)
     return ImageFont.load_default()
 
 
-def _draw_rounded_rect(draw, xy, radius, fill):
-    x0, y0, x1, y1 = xy
-    draw.rounded_rectangle(xy, radius=radius, fill=fill)
+def _rounded_rect(draw, xy, radius, fill):
+    draw.rounded_rectangle(xy, radius=radius * SCALE, fill=fill)
+
+
+def _dot(draw, x, y, r, color):
+    draw.ellipse([x - r, y - r, x + r, y + r], fill=color)
+
+
+def _label(draw, x, y, text, color, font):
+    draw.text((x * SCALE, y * SCALE), text, fill=color, font=font)
 
 
 def generate_profile_card(
@@ -43,55 +55,54 @@ def generate_profile_card(
     img = Image.new("RGB", (CARD_W, CARD_H), BG_COLOR)
     draw = ImageDraw.Draw(img)
 
-    _draw_rounded_rect(draw, (0, 0, CARD_W - 1, CARD_H - 1), radius=24, fill=DARK_BG)
+    _rounded_rect(draw, (0, 0, CARD_W - 1, CARD_H - 1), 24, DARK_BG)
 
-    _draw_rounded_rect(draw, (20, 20, CARD_W - 20, 120), radius=16, fill=ACCENT)
+    _rounded_rect(draw, (20 * SCALE, 20 * SCALE, CARD_W - 20 * SCALE, 100 * SCALE), 16, ACCENT)
 
-    font_lg = _get_font(28)
-    font_md = _get_font(20)
-    font_sm = _get_font(16)
+    f_lg = _font(24)
+    f_md = _font(18)
+    f_sm = _font(14)
 
-    draw.text((40, 40), f"👤 {name}", fill=WHITE, font=font_lg)
-    draw.text((40, 78), f"ID: {user_id}", fill=(200, 200, 255), font=font_sm)
+    _label(draw, 36, 36, name, WHITE, f_lg)
+    _label(draw, 36, 68, f"ID: {user_id}", (200, 200, 255), f_sm)
 
-    y = 140
+    y = 115
 
-    draw.text((40, y), "💳 Баланс", fill=GRAY, font=font_sm)
-    draw.text((40, y + 20), f"{balance:,} TON".replace(",", " "), fill=GOLD, font=font_lg)
+    _dot(draw, 40 * SCALE, (y + 4) * SCALE, 5 * SCALE, GOLD)
+    _label(draw, 52, y, "TON", GRAY, f_sm)
+    _label(draw, 52, y + 20, f"{balance:,}".replace(",", " "), GOLD, f_lg)
 
-    draw.text((320, y), "💎 Рубины", fill=GRAY, font=font_sm)
-    draw.text((320, y + 20), f"{rubies}", fill=(255, 100, 150), font=font_lg)
+    _dot(draw, 320 * SCALE, (y + 4) * SCALE, 5 * SCALE, PINK)
+    _label(draw, 332, y, "Rubies", GRAY, f_sm)
+    _label(draw, 332, y + 20, f"{rubies}", PINK, f_lg)
 
     y += 70
-    _draw_rounded_rect(draw, (30, y, CARD_W - 30, y + 1), radius=0, fill=(50, 50, 70))
+    _rounded_rect(draw, (30 * SCALE, y * SCALE, (CARD_W // SCALE - 30) * SCALE, (y + 1) * SCALE), 0, (50, 50, 70))
 
-    y += 15
-    draw.text((40, y), "📊 Статистика", fill=ACCENT, font=font_md)
+    y += 12
+    _label(draw, 36, y, "STATS", ACCENT, f_md)
     y += 30
 
-    stats_left = [
-        f"🎮 Игр: {total_games}",
-        f"✅ Побед: {wins}",
-        f"❌ Поражений: {losses}",
-    ]
     winrate = round(wins * 100 / total_games, 1) if total_games else 0
-    stats_right = [
-        f"🎯 Винрейт: {winrate}%",
-        f"💸 Ставки: {total_bet:,}".replace(",", " "),
-        f"🏆 Выигрыши: {total_won:,}".replace(",", " "),
+
+    rows = [
+        (f"Games: {total_games}", f"Winrate: {winrate}%"),
+        (f"Wins: {wins}", f"Bets: {total_bet:,}".replace(",", " ")),
+        (f"Losses: {losses}", f"Won: {total_won:,}".replace(",", " ")),
     ]
 
-    for i, (left, right) in enumerate(zip(stats_left, stats_right)):
-        draw.text((40, y + i * 28), left, fill=WHITE, font=font_sm)
-        draw.text((320, y + i * 28), right, fill=WHITE, font=font_sm)
+    for i, (left, right) in enumerate(rows):
+        _label(draw, 40, y + i * 26, left, WHITE, f_sm)
+        _label(draw, 320, y + i * 26, right, WHITE, f_sm)
 
     if ref_count > 0:
-        y += 90
-        _draw_rounded_rect(draw, (30, y, CARD_W - 30, y + 1), radius=0, fill=(50, 50, 70))
+        y += 85
+        _rounded_rect(draw, (30 * SCALE, y * SCALE, (CARD_W // SCALE - 30) * SCALE, (y + 1) * SCALE), 0, (50, 50, 70))
         y += 10
-        draw.text((40, y), f"👥 Рефералы: {ref_count}", fill=(100, 200, 255), font=font_sm)
+        _dot(draw, 40 * SCALE, (y + 4) * SCALE, 5 * SCALE, CYAN)
+        _label(draw, 52, y, f"Referrals: {ref_count}", CYAN, f_sm)
 
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    img.save(buf, format="PNG", optimize=True)
     buf.seek(0)
     return buf
