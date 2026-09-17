@@ -243,10 +243,11 @@ def generate_profile_card(
 
     level_name, level_color, level_bg, level_border = _calc_level(total_games, wins, total_bet)
     badge_x = name_x + draw.textbbox((0, 0), name, font=f_name)[2] + 14 * SCALE
-    badge_cy = 100 * SCALE
+    badge_cy = 98 * SCALE
     _draw_badge(draw, badge_x, badge_cy, level_name, level_bg, level_color, level_border)
 
-    _draw_star(draw, badge_x, badge_cy + 18 * SCALE, 4 * SCALE, level_color)
+    star_x = badge_x + draw.textbbox((0, 0), level_name, font=_font(10, bold=False))[2] // 2 + 12 * SCALE
+    _draw_star(draw, star_x, badge_cy, 4 * SCALE, level_color)
 
     _decorative_dots(draw, W // 2, 195 * SCALE, 7, 10, (50, 35, 100))
 
