@@ -100,14 +100,16 @@ def _draw_star(draw, cx, cy, size, color):
 def _draw_badge(draw, cx, cy, text, bg_color, text_color, border_color):
     f = _font(10, bold=False)
     bbox = draw.textbbox((0, 0), text, font=f)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    tw = bbox[2] - bbox[0]
+    th = bbox[3] - bbox[1]
+    y_offset = bbox[1]
     pad_x, pad_y = 8 * SCALE, 3 * SCALE
     x0 = cx - tw // 2 - pad_x
     y0 = cy - th // 2 - pad_y
     x1 = cx + tw // 2 + pad_x
     y1 = cy + th // 2 + pad_y
     draw.rounded_rectangle([x0, y0, x1, y1], radius=6 * SCALE, fill=bg_color, outline=border_color, width=1)
-    draw.text((cx - tw // 2, cy - th // 2), text, fill=text_color, font=f)
+    draw.text((cx - tw // 2, cy - th // 2 - y_offset), text, fill=text_color, font=f)
 
 
 def _decorative_dots(draw, cx, y_start, count=5, spacing=8, color=(60, 50, 100)):
@@ -243,11 +245,10 @@ def generate_profile_card(
 
     level_name, level_color, level_bg, level_border = _calc_level(total_games, wins, total_bet)
     badge_x = name_x + draw.textbbox((0, 0), name, font=f_name)[2] + 14 * SCALE
-    badge_cy = 98 * SCALE
+    badge_cy = 96 * SCALE
     _draw_badge(draw, badge_x, badge_cy, level_name, level_bg, level_color, level_border)
 
-    star_x = badge_x + draw.textbbox((0, 0), level_name, font=_font(10, bold=False))[2] // 2 + 12 * SCALE
-    _draw_star(draw, star_x, badge_cy, 4 * SCALE, level_color)
+    _draw_star(draw, badge_x, badge_cy + 18 * SCALE, 4 * SCALE, level_color)
 
     _decorative_dots(draw, W // 2, 195 * SCALE, 7, 10, (50, 35, 100))
 
