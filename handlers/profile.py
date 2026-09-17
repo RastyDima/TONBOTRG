@@ -75,7 +75,7 @@ def _fetch_avatar_sync(user_id: int) -> bytes | None:
             return None
 
         file_path = data2["result"]["file_path"]
-        dl_url = f"{base}/file/{file_path}"
+        dl_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
         req3 = urllib.request.Request(dl_url)
         with urllib.request.urlopen(req3, context=_SSL_CTX, timeout=10) as resp3:
             avatar = resp3.read()
