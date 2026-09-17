@@ -246,13 +246,7 @@ def generate_profile_card(
     badge_cy = 100 * SCALE
     _draw_badge(draw, badge_x, badge_cy, level_name, level_bg, level_color, level_border)
 
-    _draw_star(draw, badge_x, badge_cy + 22 * SCALE, 4 * SCALE, level_color)
-
-    ton_x = W - 180 * SCALE
-    f_ton = _font(38, bold=True)
-    draw.text((ton_x, 78 * SCALE), "TON", fill=PURPLE2, font=f_ton)
-    f_sub = _font(10, bold=False)
-    draw.text((ton_x + 8 * SCALE, 120 * SCALE), "PLAY  EARN  WIN", fill=GRAY, font=f_sub)
+    _draw_star(draw, badge_x, badge_cy + 18 * SCALE, 4 * SCALE, level_color)
 
     _decorative_dots(draw, W // 2, 195 * SCALE, 7, 10, (50, 35, 100))
 
