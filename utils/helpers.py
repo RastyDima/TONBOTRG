@@ -107,7 +107,9 @@ def profile_text(user: dict, stats: dict) -> str:
     total = stats["total_games"]
     winrate = round(stats["wins"] * 100 / total, 1) if total else 0
     rubies = user.get('rubies', 0) or 0
-    return (
+    ref_count = user.get('referral_count', 0) or 0
+    ref_earned = user.get('referral_earned', 0) or 0
+    text = (
         f"👤 <b>Профиль</b>\n"
         f"🆔 ID: <code>{user['id']}</code>\n"
         f"👤 Имя: {html.escape(str(user['first_name'] or 'Игрок'))}\n"
@@ -121,6 +123,13 @@ def profile_text(user: dict, stats: dict) -> str:
         f"💸 Всего поставлено: {format_number(stats['total_bet'])}\n"
         f"🏆 Всего выиграно: {format_number(stats['total_won'])}"
     )
+    if ref_count > 0:
+        text += (
+            f"\n\n👥 <b>Рефералы</b>\n"
+            f"Приглашено: {ref_count}\n"
+            f"Заработано: {format_number(ref_earned)} TON"
+        )
+    return text
 
 
 def history_text(transactions: list) -> str:

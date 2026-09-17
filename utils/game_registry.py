@@ -1,6 +1,6 @@
 from database import db
 
-GAME_LABELS = {"mines": "Мины", "joker": "Джокер", "alchemist": "Алхимик", "ruby_roulette": "Рубиновая рулетка"}
+GAME_LABELS = {"mines": "Мины", "joker": "Джокер", "alchemist": "Алхимик", "ruby_roulette": "Рубиновая рулетка", "coinflip": "Монетка"}
 
 
 class GameRegistry:
@@ -48,6 +48,22 @@ def clear_pending_bet(user_id: int) -> None:
     _pending_bets.pop(user_id, None)
 
 
+def _process_referral_bet(user_id: int, bet: int) -> None:
+    """Начисляет реферальный бонус при ставке реферала."""
+    try:
+        user = db.get_user(user_id)
+        if not user or not user.get("referrer_id"):
+            return
+        referrer_id = user["referrer_id"]
+        bonus = int(bet * 0.05)
+        if bonus < 1:
+            return
+        db.add_balance(referrer_id, bonus, "referral", f"Реферальный бонус от {user_id}")
+        db.add_referral_earning(referrer_id, bonus)
+    except Exception:
+        pass
+
+
 def cashout_game(user_id: int):
     """Забирает выигрыш: начисляет payout, фиксирует победу в БД и статистике."""
     entry = registry.get(user_id)
@@ -63,6 +79,7 @@ def cashout_game(user_id: int):
     if payout >= 50000:
         rubies = round(payout / 50000 * 0.1, 2)
         db.add_rubies(user_id, rubies)
+    _process_referral_bet(user_id, game.bet)
     registry.release(user_id)
     db.add_game(user_id, entry["type"], game.bet, payout, "win")
     db.update_stats(user_id, "win", game.bet, payout)
@@ -78,6 +95,7 @@ def lose_game(user_id: int):
     if game.is_over:
         return None
     game.lost = True
+    _process_referral_bet(user_id, game.bet)
     registry.release(user_id)
     db.add_game(user_id, entry["type"], game.bet, 0, "lose")
     db.update_stats(user_id, "lose", game.bet, 0)

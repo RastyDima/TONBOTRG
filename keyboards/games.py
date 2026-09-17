@@ -16,6 +16,7 @@ def ton_games():
     kb.button(text="💣 Мины", callback_data="mines")
     kb.button(text="🃏 Джокер", callback_data="joker")
     kb.button(text="⚗️ Алхимик", callback_data="alchemist")
+    kb.button(text="🪙 Монетка", callback_data="coinflip")
     kb.row(back_button("menu_games"))
     return kb.as_markup()
 

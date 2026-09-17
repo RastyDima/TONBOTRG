@@ -18,10 +18,29 @@ router = Router()
 async def cmd_start(message: Message):
     user = message.from_user
     existing = db.get_user(user.id)
-    db.register_user(user.id, (user.username or "").lower() or None, user.first_name)
+    referrer_id = None
+    args = message.text.split()
+    if len(args) > 1 and args[1].startswith("ref"):
+        try:
+            referrer_id = int(args[1][3:])
+        except ValueError:
+            pass
+    if existing:
+        db.register_user(user.id, (user.username or "").lower() or None, user.first_name)
+    else:
+        db.register_user(user.id, (user.username or "").lower() or None, user.first_name, referrer_id)
     name = html.escape(user.first_name or "игрок")
     if existing:
         text = f"👋 С возвращением, {name}!\nВыберите действие в меню:"
+    elif referrer_id:
+        ref = db.get_user(referrer_id)
+        ref_name = html.escape(ref["first_name"]) if ref else "игрок"
+        text = (
+            f"👋 <b>Добро пожаловать, {name}!</b>\n\n"
+            f"🎁 За регистрацию начислено {format_number(STARTING_BALANCE)} TON.\n"
+            f"👋 Вас пригласил {ref_name}\n\n"
+            f"Выберите действие в меню:"
+        )
     else:
         text = (
             f"👋 <b>Добро пожаловать, {name}!</b>\n\n"
@@ -36,10 +55,12 @@ async def cmd_start(message: Message):
 async def cmd_help(message: Message):
     await message.answer(
         "ℹ️ <b>Помощь</b>\n\n"
-        "🎮 <b>Игры:</b> Мины, Джокер (доступны из меню)\n"
-        "⚡ <b>Быстрый старт:</b> <code>м 30000</code> — мины со ставкой, "
-        "<code>дж 30000</code> — джокер со ставкой, "
-        "<code>алх 30000</code> — алхимик со ставкой\n"
+        "🎮 <b>Игры:</b> Мины, Джокер, Алхимик, Монетка (доступны из меню)\n"
+        "⚡ <b>Быстрый старт:</b>\n"
+        "<code>м 30000</code> — мины\n"
+        "<code>дж 30000</code> — джокер\n"
+        "<code>алх 30000</code> — алхимик\n"
+        "<code>мон 30000</code> — монетка\n"
         "💸 <b>Перевод:</b> ответьте на сообщение игрока <code>п 12000</code>\n"
         "💰 <b>Баланс:</b> <code>б</code>\n"
         "👤 /profile — профиль и статистика\n"

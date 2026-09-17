@@ -112,11 +112,17 @@ class Database:
             if "max_balance" not in cols:
                 conn.execute("ALTER TABLE users ADD COLUMN max_balance INTEGER NOT NULL DEFAULT 0")
                 conn.execute("UPDATE users SET max_balance = balance WHERE max_balance = 0")
+            if "referrer_id" not in cols:
+                conn.execute("ALTER TABLE users ADD COLUMN referrer_id INTEGER")
+            if "referral_count" not in cols:
+                conn.execute("ALTER TABLE users ADD COLUMN referral_count INTEGER NOT NULL DEFAULT 0")
+            if "referral_earned" not in cols:
+                conn.execute("ALTER TABLE users ADD COLUMN referral_earned INTEGER NOT NULL DEFAULT 0")
             conn.commit()
 
     # ---------- Пользователи ----------
 
-    def register_user(self, user_id: int, username, first_name) -> None:
+    def register_user(self, user_id: int, username, first_name, referrer_id: int | None = None) -> None:
         is_admin = 1 if user_id in ADMIN_IDS else 0
         with closing(self._connect()) as conn, conn:
             new = conn.execute(
@@ -124,13 +130,13 @@ class Database:
             ).fetchone() is None
             conn.execute(
                 """
-                INSERT INTO users (id, username, first_name, balance, is_admin, last_daily)
-                VALUES (?, ?, ?, ?, ?, NULL)
+                INSERT INTO users (id, username, first_name, balance, is_admin, last_daily, referrer_id)
+                VALUES (?, ?, ?, ?, ?, NULL, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     username = excluded.username,
                     first_name = excluded.first_name
                 """,
-                (user_id, username, first_name, STARTING_BALANCE, is_admin),
+                (user_id, username, first_name, STARTING_BALANCE, is_admin, referrer_id),
             )
             conn.execute("INSERT OR IGNORE INTO stats (user_id) VALUES (?)", (user_id,))
             if new:
@@ -138,6 +144,20 @@ class Database:
                     "INSERT INTO transactions (user_id, amount, type, description) VALUES (?, ?, ?, ?)",
                     (user_id, STARTING_BALANCE, "bonus", "Приветственный бонус"),
                 )
+                if referrer_id and referrer_id != user_id:
+                    ref = conn.execute("SELECT 1 FROM users WHERE id = ?", (referrer_id,)).fetchone()
+                    if ref:
+                        conn.execute(
+                            "UPDATE users SET referral_count = referral_count + 1 WHERE id = ?",
+                            (referrer_id,),
+                        )
+
+    def add_referral_earning(self, user_id: int, amount: int) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "UPDATE users SET referral_earned = referral_earned + ? WHERE id = ?",
+                (amount, user_id),
+            )
 
     def get_user(self, user_id: int) -> dict | None:
         with closing(self._connect()) as conn:
@@ -629,6 +649,13 @@ class PostgresDatabase:
             cur.execute(
                 "UPDATE users SET max_balance = balance WHERE max_balance = 0"
             )
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT")
+            cur.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_count INTEGER NOT NULL DEFAULT 0"
+            )
+            cur.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_earned BIGINT NOT NULL DEFAULT 0"
+            )
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS promos (
                     id BIGSERIAL PRIMARY KEY,
@@ -652,20 +679,20 @@ class PostgresDatabase:
 
     # ---------- Пользователи ----------
 
-    def register_user(self, user_id: int, username, first_name) -> None:
+    def register_user(self, user_id: int, username, first_name, referrer_id: int | None = None) -> None:
         is_admin = 1 if user_id in ADMIN_IDS else 0
         with self._cursor() as cur:
             cur.execute("SELECT 1 FROM users WHERE id = %s", (user_id,))
             new = cur.fetchone() is None
             cur.execute(
                 """
-                INSERT INTO users (id, username, first_name, balance, is_admin, last_daily)
-                VALUES (%s, %s, %s, %s, %s, NULL)
+                INSERT INTO users (id, username, first_name, balance, is_admin, last_daily, referrer_id)
+                VALUES (%s, %s, %s, %s, %s, NULL, %s)
                 ON CONFLICT (id) DO UPDATE SET
                     username = EXCLUDED.username,
                     first_name = EXCLUDED.first_name
                 """,
-                (user_id, username, first_name, STARTING_BALANCE, is_admin),
+                (user_id, username, first_name, STARTING_BALANCE, is_admin, referrer_id),
             )
             cur.execute(
                 "INSERT INTO stats (user_id) VALUES (%s) ON CONFLICT (user_id) DO NOTHING",
@@ -676,6 +703,20 @@ class PostgresDatabase:
                     "INSERT INTO transactions (user_id, amount, type, description) VALUES (%s, %s, %s, %s)",
                     (user_id, STARTING_BALANCE, "bonus", "Приветственный бонус"),
                 )
+                if referrer_id and referrer_id != user_id:
+                    cur.execute("SELECT 1 FROM users WHERE id = %s", (referrer_id,))
+                    if cur.fetchone():
+                        cur.execute(
+                            "UPDATE users SET referral_count = referral_count + 1 WHERE id = %s",
+                            (referrer_id,),
+                        )
+
+    def add_referral_earning(self, user_id: int, amount: int) -> None:
+        with self._cursor() as cur:
+            cur.execute(
+                "UPDATE users SET referral_earned = referral_earned + %s WHERE id = %s",
+                (amount, user_id),
+            )
 
     def get_user(self, user_id: int) -> dict | None:
         with self._cursor() as cur:
