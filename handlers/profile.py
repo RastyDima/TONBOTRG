@@ -4,6 +4,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+import aiohttp
+
+from config import BOT_TOKEN
 from database import db
 from keyboards.common import back_button
 from utils.helpers import balance_text
@@ -26,7 +29,32 @@ def balance_kb():
     return kb.as_markup()
 
 
-def _make_card(user, stats, ref_count):
+async def _get_avatar(user_id: int) -> bytes | None:
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUserProfilePhotos"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params={"user_id": user_id, "limit": 1}) as resp:
+                data = await resp.json()
+                if not data.get("ok") or not data["result"]["photos"]:
+                    return None
+                photo = data["result"]["photos"][0][-1]
+                file_id = photo["file_id"]
+            url2 = f"https://api.telegram.org/bot{BOT_TOKEN}/getFile"
+            async with session.get(url2, params={"file_id": file_id}) as resp2:
+                data2 = await resp2.json()
+                if not data2.get("ok"):
+                    return None
+                file_path = data2["result"]["file_path"]
+            file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+            async with session.get(file_url) as resp3:
+                if resp3.status == 200:
+                    return await resp3.read()
+    except Exception:
+        return None
+
+
+async def _make_card(user, stats, ref_count, from_user):
+    avatar = await _get_avatar(user["id"])
     card_buf = generate_profile_card(
         user_id=user["id"],
         name=user["first_name"] or "Игрок",
@@ -38,6 +66,7 @@ def _make_card(user, stats, ref_count):
         total_bet=stats["total_bet"],
         total_won=stats["total_won"],
         ref_count=ref_count,
+        avatar_bytes=avatar,
     )
     return ("profile.png", card_buf.getvalue())
 
@@ -50,7 +79,7 @@ async def profile_command(message: Message):
         return
     stats = db.get_stats(message.from_user.id)
     ref_count = user.get("referral_count", 0) or 0
-    filename, photo_bytes = _make_card(user, stats, ref_count)
+    filename, photo_bytes = await _make_card(user, stats, ref_count, message.from_user)
     from aiogram.types import FSInputFile
     import tempfile, os
     tmp = os.path.join(tempfile.gettempdir(), filename)
@@ -75,7 +104,7 @@ async def profile_callback(callback: CallbackQuery, state: FSMContext):
         return
     stats = db.get_stats(callback.from_user.id)
     ref_count = user.get("referral_count", 0) or 0
-    filename, photo_bytes = _make_card(user, stats, ref_count)
+    filename, photo_bytes = await _make_card(user, stats, ref_count, callback.from_user)
     from aiogram.types import FSInputFile
     import tempfile, os
     tmp = os.path.join(tempfile.gettempdir(), filename)

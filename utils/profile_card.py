@@ -1,8 +1,7 @@
 """Генератор профиль-карточки в стиле TON Casino."""
 import io
-import math
 import os
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont
 
 SCALE = 2
 W, H = 580 * SCALE, 720 * SCALE
@@ -23,8 +22,14 @@ PURPLE = (160, 100, 255)
 GREEN = (80, 220, 120)
 RED = (255, 80, 80)
 
+_NOTO = os.path.join(FONT_DIR, "noto_cjk.otf")
+_ARIAL_BD = os.path.join(FONT_DIR, "arialbd.ttf")
+_ARIAL = os.path.join(FONT_DIR, "arial.ttf")
+
 
 def _font(size: int, bold=True) -> ImageFont.FreeTypeFont:
+    if os.path.exists(_NOTO):
+        return ImageFont.truetype(_NOTO, size * SCALE)
     name = "arialbd.ttf" if bold else "arial.ttf"
     path = os.path.join(FONT_DIR, name)
     if os.path.exists(path):
@@ -61,6 +66,14 @@ def _dot(draw, x, y, r, color):
     draw.ellipse([x - r, y - r, x + r, y + r], fill=color)
 
 
+def _clip_circle(img, cx, cy, r):
+    mask = Image.new("L", img.size, 0)
+    ImageDraw.Draw(mask).ellipse([cx - r, cy - r, cx + r, cy + r], fill=255)
+    result = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    result.paste(img.convert("RGBA"), mask=mask)
+    return result
+
+
 def generate_profile_card(
     user_id: int,
     name: str,
@@ -73,6 +86,7 @@ def generate_profile_card(
     total_won: int,
     ref_count: int = 0,
     frame: str | None = None,
+    avatar_bytes: bytes | None = None,
 ) -> io.BytesIO:
     img = Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(img)
@@ -87,17 +101,40 @@ def generate_profile_card(
 
     avatar_cx, avatar_cy = 120 * SCALE, 140 * SCALE
     avatar_r = 60 * SCALE
-    _circle_glow(img, avatar_cx, avatar_cy, avatar_r, GLOW, 16)
-    draw = ImageDraw.Draw(img)
-    draw.ellipse(
-        [avatar_cx - avatar_r, avatar_cy - avatar_r, avatar_cx + avatar_r, avatar_cy + avatar_r],
-        fill=(30, 24, 55), outline=PURPLE, width=3 * SCALE,
-    )
-    f_avatar = _font(40)
-    initials = name[:1].upper()
-    bbox = draw.textbbox((0, 0), initials, font=f_avatar)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    draw.text((avatar_cx - tw // 2, avatar_cy - th // 2 - 4 * SCALE), initials, fill=PURPLE, font=f_avatar)
+
+    avatar_drawn = False
+    if avatar_bytes:
+        try:
+            av = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
+            av = av.resize((avatar_r * 2, avatar_r * 2), Image.LANCZOS)
+            circle_mask = Image.new("L", av.size, 0)
+            ImageDraw.Draw(circle_mask).ellipse([0, 0, av.size[0], av.size[1]], fill=255)
+            avatar_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+            avatar_layer.paste(av, (avatar_cx - avatar_r, avatar_cy - avatar_r), circle_mask)
+            img = Image.alpha_composite(img.convert("RGBA"), avatar_layer).convert("RGB")
+            draw = ImageDraw.Draw(img)
+            draw.ellipse(
+                [avatar_cx - avatar_r - 2, avatar_cy - avatar_r - 2,
+                 avatar_cx + avatar_r + 2, avatar_cy + avatar_r + 2],
+                outline=PURPLE, width=3 * SCALE,
+            )
+            avatar_drawn = True
+        except Exception:
+            pass
+
+    if not avatar_drawn:
+        _circle_glow(img, avatar_cx, avatar_cy, avatar_r, GLOW, 16)
+        draw = ImageDraw.Draw(img)
+        draw.ellipse(
+            [avatar_cx - avatar_r, avatar_cy - avatar_r,
+             avatar_cx + avatar_r, avatar_cy + avatar_r],
+            fill=(30, 24, 55), outline=PURPLE, width=3 * SCALE,
+        )
+        f_avatar = _font(40)
+        initials = name[:1].upper()
+        bbox = draw.textbbox((0, 0), initials, font=f_avatar)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        draw.text((avatar_cx - tw // 2, avatar_cy - th // 2 - 4 * SCALE), initials, fill=PURPLE, font=f_avatar)
 
     f_name = _font(28)
     f_id = _font(14, bold=False)
