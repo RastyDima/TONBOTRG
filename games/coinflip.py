@@ -7,6 +7,7 @@ import time
 
 class CoinFlipGame:
     def __init__(self, user_id: int, bet: int):
+        self.type = "coinflip"
         self.user_id = user_id
         self.bet = bet
         self.choice: str | None = None
