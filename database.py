@@ -118,6 +118,20 @@ class Database:
                 conn.execute("ALTER TABLE users ADD COLUMN referral_count INTEGER NOT NULL DEFAULT 0")
             if "referral_earned" not in cols:
                 conn.execute("ALTER TABLE users ADD COLUMN referral_earned INTEGER NOT NULL DEFAULT 0")
+            if "active_frame" not in cols:
+                conn.execute("ALTER TABLE users ADD COLUMN active_frame TEXT")
+            if "active_title" not in cols:
+                conn.execute("ALTER TABLE users ADD COLUMN active_title TEXT")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_purchases (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    item_id TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    purchased_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                    UNIQUE(user_id, item_id)
+                )
+            """)
             conn.commit()
 
     # ---------- Пользователи ----------
@@ -557,6 +571,48 @@ class Database:
             conn.execute("DELETE FROM promo_claims")
             conn.execute("UPDATE promos SET used_count = 0")
 
+    # ---------- Магазин ----------
+
+    def owns_item(self, user_id: int, item_id: str) -> bool:
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM user_purchases WHERE user_id = ? AND item_id = ?",
+                (user_id, item_id),
+            ).fetchone()
+            return row is not None
+
+    def buy_item(self, user_id: int, item_id: str, category: str, price: int) -> bool:
+        with closing(self._connect()) as conn, conn:
+            user = conn.execute("SELECT balance FROM users WHERE id = ?", (user_id,)).fetchone()
+            if not user or user["balance"] < price:
+                return False
+            conn.execute("UPDATE users SET balance = balance - ? WHERE id = ?", (price, user_id))
+            conn.execute(
+                "INSERT OR IGNORE INTO user_purchases (user_id, item_id, category) VALUES (?, ?, ?)",
+                (user_id, item_id, category),
+            )
+            conn.execute(
+                "INSERT INTO transactions (user_id, amount, type, description) VALUES (?, ?, ?, ?)",
+                (user_id, -price, "shop", f"Покупка: {item_id}"),
+            )
+            return True
+
+    def set_active_frame(self, user_id: int, frame: str | None) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute("UPDATE users SET active_frame = ? WHERE id = ?", (frame, user_id))
+
+    def set_active_title(self, user_id: int, title: str | None) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute("UPDATE users SET active_title = ? WHERE id = ?", (title, user_id))
+
+    def get_purchases(self, user_id: int) -> list[dict]:
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT item_id, category FROM user_purchases WHERE user_id = ?",
+                (user_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
 
 class PostgresDatabase:
     """Слой работы с PostgreSQL (для облачного хостинга)."""
@@ -677,6 +733,22 @@ class PostgresDatabase:
                     user_id BIGINT NOT NULL,
                     created_at TEXT NOT NULL DEFAULT (to_char(LOCALTIMESTAMP, 'YYYY-MM-DD HH24:MI:SS')),
                     UNIQUE(promo_id, user_id)
+                )
+            """)
+            cur.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS active_frame TEXT"
+            )
+            cur.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS active_title TEXT"
+            )
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS user_purchases (
+                    id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL,
+                    item_id TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT (to_char(LOCALTIMESTAMP, 'YYYY-MM-DD HH24:MI:SS')),
+                    UNIQUE(user_id, item_id)
                 )
             """)
 
@@ -1109,6 +1181,50 @@ class PostgresDatabase:
             cur.execute("DELETE FROM games")
             cur.execute("DELETE FROM promo_claims")
             cur.execute("UPDATE promos SET used_count = 0")
+
+    # ---------- Магазин ----------
+
+    def owns_item(self, user_id: int, item_id: str) -> bool:
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM user_purchases WHERE user_id = %s AND item_id = %s",
+                (user_id, item_id),
+            )
+            return cur.fetchone() is not None
+
+    def buy_item(self, user_id: int, item_id: str, category: str, price: int) -> bool:
+        with self._cursor() as cur:
+            cur.execute("SELECT balance FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            if not row or row["balance"] < price:
+                return False
+            cur.execute("UPDATE users SET balance = balance - %s WHERE id = %s", (price, user_id))
+            cur.execute(
+                "INSERT INTO user_purchases (user_id, item_id, category) VALUES (%s, %s, %s) "
+                "ON CONFLICT (user_id, item_id) DO NOTHING",
+                (user_id, item_id, category),
+            )
+            cur.execute(
+                "INSERT INTO transactions (user_id, amount, type, description) VALUES (%s, %s, %s, %s)",
+                (user_id, -price, "shop", f"Покупка: {item_id}"),
+            )
+            return True
+
+    def set_active_frame(self, user_id: int, frame: str | None) -> None:
+        with self._cursor() as cur:
+            cur.execute("UPDATE users SET active_frame = %s WHERE id = %s", (frame, user_id))
+
+    def set_active_title(self, user_id: int, title: str | None) -> None:
+        with self._cursor() as cur:
+            cur.execute("UPDATE users SET active_title = %s WHERE id = %s", (title, user_id))
+
+    def get_purchases(self, user_id: int) -> list[dict]:
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT item_id, category FROM user_purchases WHERE user_id = %s",
+                (user_id,),
+            )
+            return [dict(r) for r in cur.fetchall()]
 
 
 db = PostgresDatabase() if DATABASE_URL else Database()

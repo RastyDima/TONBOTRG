@@ -129,6 +129,15 @@ def _calc_level(total_games, wins, total_bet):
     return "BRONZE", (200, 140, 80), (150, 100, 50), (220, 160, 100)
 
 
+FRAME_COLORS = {
+    "frame_neon_green": (0, 255, 120),
+    "frame_fire_red": (255, 60, 40),
+    "frame_ice_blue": (60, 180, 255),
+    "frame_gold": (255, 210, 60),
+    "frame_diamond": (180, 230, 255),
+}
+
+
 def generate_profile_card(
     user_id: int,
     name: str,
@@ -142,6 +151,7 @@ def generate_profile_card(
     ref_count: int = 0,
     frame: str | None = None,
     avatar_bytes: bytes | None = None,
+    title: str | None = None,
 ) -> io.BytesIO:
     BG_TOP = (12, 8, 24)
     BG_BOT = (18, 12, 35)
@@ -237,10 +247,23 @@ def generate_profile_card(
             initials, fill=PURPLE2, font=f_avatar,
         )
 
+    if frame and frame in FRAME_COLORS:
+        fc = FRAME_COLORS[frame]
+        _circle_glow(img, avatar_cx, avatar_cy, avatar_r + 4 * SCALE, fc, 24)
+        draw = ImageDraw.Draw(img)
+        draw.ellipse(
+            [avatar_cx - avatar_r - 5 * SCALE, avatar_cy - avatar_r - 5 * SCALE,
+             avatar_cx + avatar_r + 5 * SCALE, avatar_cy + avatar_r + 5 * SCALE],
+            outline=fc, width=3 * SCALE,
+        )
+
     f_name = _font(30)
     f_id = _font(13, bold=False)
     name_x = 220 * SCALE
     draw.text((name_x, 90 * SCALE), name, fill=WHITE, font=f_name)
+    if title:
+        name_w = draw.textbbox((0, 0), name, font=f_name)[2]
+        draw.text((name_x + name_w + 10 * SCALE, 90 * SCALE), title, fill=GOLD, font=_font(20))
     draw.text((name_x, 128 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
 
     level_name, level_color, level_bg, level_border = _calc_level(total_games, wins, total_bet)
