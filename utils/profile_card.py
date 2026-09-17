@@ -1,4 +1,4 @@
-"""Генератор профиль-карточки в стиле TON Casino — v2 premium."""
+"""Генератор профиль-карточки в стиле TON Casino — v3."""
 import io
 import math
 import os
@@ -69,22 +69,62 @@ def _dot(draw, x, y, r, color):
     draw.ellipse([x - r, y - r, x + r, y + r], fill=color)
 
 
-def _ring(draw, cx, cy, r, color, width=2):
-    draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=color, width=width)
+def _draw_diamond(draw, cx, cy, size, color, outline=None):
+    s = size
+    points = [(cx, cy - s), (cx + s, cy), (cx, cy + s), (cx - s, cy)]
+    draw.polygon(points, fill=color, outline=outline)
 
 
-def _progress_bar(draw, x, y, w, h, pct, bg_color, fill_color1, fill_color2, radius=6):
-    draw.rounded_rectangle([x, y, x + w, y + h], radius=radius, fill=bg_color)
-    if pct > 0:
-        fw = max(h, int(w * min(pct, 100) / 100))
-        _gradient_h(Image.new("RGB", (1, 1)), (0, 0, 1, 1), fill_color1, fill_color2)
-        draw.rounded_rectangle([x, y, x + fw, y + h], radius=radius, fill=fill_color1)
+def _draw_gem(draw, cx, cy, size, color, shine=None):
+    s = size
+    top = [(cx, cy - s), (cx + s * 0.6, cy - s * 0.3), (cx - s * 0.6, cy - s * 0.3)]
+    bot = [(cx - s * 0.6, cy - s * 0.3), (cx + s * 0.6, cy - s * 0.3), (cx + s * 0.8, cy + s * 0.1),
+           (cx, cy + s), (cx - s * 0.8, cy + s * 0.1)]
+    darker = tuple(max(0, c - 40) for c in color)
+    draw.polygon(top, fill=color, outline=darker)
+    draw.polygon(bot, fill=darker, outline=darker)
+    if shine:
+        small_top = [(cx, cy - s + 2), (cx + s * 0.25, cy - s * 0.4), (cx - s * 0.15, cy - s * 0.35)]
+        draw.polygon(small_top, fill=shine)
+
+
+def _draw_star(draw, cx, cy, size, color):
+    points = []
+    for i in range(10):
+        angle = math.radians(i * 36 - 90)
+        r = size if i % 2 == 0 else size * 0.45
+        points.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
+    draw.polygon(points, fill=color)
+
+
+def _draw_badge(draw, cx, cy, text, bg_color, text_color, border_color):
+    f = _font(10, bold=False)
+    bbox = draw.textbbox((0, 0), text, font=f)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    pad_x, pad_y = 8 * SCALE, 3 * SCALE
+    x0 = cx - tw // 2 - pad_x
+    y0 = cy - th // 2 - pad_y
+    x1 = cx + tw // 2 + pad_x
+    y1 = cy + th // 2 + pad_y
+    draw.rounded_rectangle([x0, y0, x1, y1], radius=6 * SCALE, fill=bg_color, outline=border_color, width=1)
+    draw.text((cx - tw // 2, cy - th // 2), text, fill=text_color, font=f)
 
 
 def _decorative_dots(draw, cx, y_start, count=5, spacing=8, color=(60, 50, 100)):
     for i in range(count):
         dx = (i - count // 2) * spacing * SCALE
         _dot(draw, cx + dx, y_start, 2 * SCALE, color)
+
+
+def _calc_level(total_games, wins, total_bet):
+    score = total_games * 2 + wins * 5 + total_bet // 10000
+    if score >= 500:
+        return "DIAMOND", (100, 220, 255), (60, 180, 220), (80, 200, 240)
+    if score >= 200:
+        return "GOLD", (255, 210, 60), (200, 160, 30), (255, 220, 80)
+    if score >= 50:
+        return "SILVER", (200, 200, 220), (140, 140, 160), (220, 220, 240)
+    return "BRONZE", (200, 140, 80), (150, 100, 50), (220, 160, 100)
 
 
 def generate_profile_card(
@@ -101,7 +141,6 @@ def generate_profile_card(
     frame: str | None = None,
     avatar_bytes: bytes | None = None,
 ) -> io.BytesIO:
-    # ── Colors ──
     BG_TOP = (12, 8, 24)
     BG_BOT = (18, 12, 35)
     CARD_BG = (20, 16, 40)
@@ -122,11 +161,9 @@ def generate_profile_card(
     RED = (255, 70, 90)
     NEON_LINE = (80, 50, 180)
 
-    # ── Background gradient ──
     img = Image.new("RGB", (W, H), BG_TOP)
     _gradient_v(img, (0, 0, W, H), BG_TOP, BG_BOT)
 
-    # ── Ambient glow spots ──
     glow_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     gd = ImageDraw.Draw(glow_layer)
     for gx, gy, gr, gc in [
@@ -140,20 +177,17 @@ def generate_profile_card(
     img = Image.alpha_composite(img.convert("RGBA"), glow_layer).convert("RGB")
     draw = ImageDraw.Draw(img)
 
-    # ── Main card ──
     _glow_rect(img, (16 * SCALE, 16 * SCALE, W - 16 * SCALE, H - 16 * SCALE), 30, GLOW, 16)
     draw = ImageDraw.Draw(img)
 
     card_rect = (20 * SCALE, 20 * SCALE, W - 20 * SCALE, H - 20 * SCALE)
     draw.rounded_rectangle(card_rect, radius=28 * SCALE, fill=CARD_BG, outline=BORDER, width=2 * SCALE)
 
-    # ── Top decorative line ──
     line_y = 36 * SCALE
     draw.line([(60 * SCALE, line_y), (W - 60 * SCALE, line_y)], fill=NEON_LINE, width=1)
     _dot(draw, 60 * SCALE, line_y, 3 * SCALE, PURPLE)
     _dot(draw, W - 60 * SCALE, line_y, 3 * SCALE, PURPLE)
 
-    # ── Avatar ──
     avatar_cx, avatar_cy = 130 * SCALE, 140 * SCALE
     avatar_r = 64 * SCALE
 
@@ -168,7 +202,6 @@ def generate_profile_card(
             avatar_layer.paste(av, (avatar_cx - avatar_r, avatar_cy - avatar_r), circle_mask)
             img = Image.alpha_composite(img.convert("RGBA"), avatar_layer).convert("RGB")
             draw = ImageDraw.Draw(img)
-            # Gradient ring effect — outer glow + inner ring
             _circle_glow(img, avatar_cx, avatar_cy, avatar_r, GLOW, 20)
             draw = ImageDraw.Draw(img)
             draw.ellipse(
@@ -202,60 +235,51 @@ def generate_profile_card(
             initials, fill=PURPLE2, font=f_avatar,
         )
 
-    # ── Name + ID ──
     f_name = _font(30)
     f_id = _font(13, bold=False)
     name_x = 220 * SCALE
     draw.text((name_x, 90 * SCALE), name, fill=WHITE, font=f_name)
     draw.text((name_x, 128 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
 
-    # ── TON badge ──
+    level_name, level_color, level_bg, level_border = _calc_level(total_games, wins, total_bet)
+    badge_x = name_x + draw.textbbox((0, 0), name, font=f_name)[2] + 14 * SCALE
+    badge_cy = 100 * SCALE
+    _draw_badge(draw, badge_x, badge_cy, level_name, level_bg, level_color, level_border)
+
+    _draw_star(draw, badge_x, badge_cy + 22 * SCALE, 4 * SCALE, level_color)
+
     ton_x = W - 180 * SCALE
     f_ton = _font(38, bold=True)
     draw.text((ton_x, 78 * SCALE), "TON", fill=PURPLE2, font=f_ton)
     f_sub = _font(10, bold=False)
     draw.text((ton_x + 8 * SCALE, 120 * SCALE), "PLAY  EARN  WIN", fill=GRAY, font=f_sub)
 
-    # ── Decorative dots under header ──
     _decorative_dots(draw, W // 2, 195 * SCALE, 7, 10, (50, 35, 100))
 
-    # ── Balance / Rubies section ──
     sy = 220 * SCALE
     sec_h = 110 * SCALE
     draw.rounded_rectangle(
         (36 * SCALE, sy, W - 36 * SCALE, sy + sec_h),
         radius=16 * SCALE, fill=SECTION_BG, outline=BORDER_DIM, width=1 * SCALE,
     )
-
-    # Inner glow line at top of section
     _gradient_h(img, (50 * SCALE, sy + 2 * SCALE, W - 50 * SCALE, sy + 3 * SCALE), BORDER_DIM, PURPLE)
     draw = ImageDraw.Draw(img)
 
-    # Balance
     draw.text((56 * SCALE, sy + 14 * SCALE), "БАЛАНС", fill=GRAY, font=_font(10, bold=False))
-    _dot(draw, 56 * SCALE, sy + 52 * SCALE, 7 * SCALE, GOLD)
-    draw.ellipse([56 * SCALE - 9 * SCALE, sy + 52 * SCALE - 9 * SCALE,
-                  56 * SCALE + 9 * SCALE, sy + 52 * SCALE + 9 * SCALE],
-                 outline=GOLD2, width=1)
+    _draw_diamond(draw, 66 * SCALE, sy + 52 * SCALE, 9 * SCALE, GOLD, outline=GOLD2)
     f_bal = _font(28)
-    draw.text((78 * SCALE, sy + 36 * SCALE), f"{balance:,}".replace(",", " "), fill=GOLD, font=f_bal)
-    draw.text((78 * SCALE, sy + 74 * SCALE), "TON", fill=GOLD2, font=_font(11, bold=False))
+    draw.text((84 * SCALE, sy + 36 * SCALE), f"{balance:,}".replace(",", " "), fill=GOLD, font=f_bal)
+    draw.text((84 * SCALE, sy + 74 * SCALE), "TON", fill=GOLD2, font=_font(11, bold=False))
 
-    # Divider
     mid = W // 2
     draw.line([(mid, sy + 18 * SCALE), (mid, sy + sec_h - 18 * SCALE)], fill=BORDER_DIM, width=1)
 
-    # Rubies
     draw.text((mid + 20 * SCALE, sy + 14 * SCALE), "РУБИНЫ", fill=GRAY, font=_font(10, bold=False))
-    _dot(draw, mid + 20 * SCALE, sy + 52 * SCALE, 7 * SCALE, PINK)
-    draw.ellipse([mid + 20 * SCALE - 9 * SCALE, sy + 52 * SCALE - 9 * SCALE,
-                  mid + 20 * SCALE + 9 * SCALE, sy + 52 * SCALE + 9 * SCALE],
-                 outline=PINK2, width=1)
+    _draw_gem(draw, mid + 30 * SCALE, sy + 52 * SCALE, 9 * SCALE, PINK, shine=(255, 180, 220))
     f_rub = _font(28)
-    draw.text((mid + 40 * SCALE, sy + 36 * SCALE), f"{rubies}", fill=PINK, font=f_rub)
-    draw.text((mid + 40 * SCALE, sy + 74 * SCALE), "GEMS", fill=PINK2, font=_font(11, bold=False))
+    draw.text((mid + 48 * SCALE, sy + 36 * SCALE), f"{rubies}", fill=PINK, font=f_rub)
+    draw.text((mid + 48 * SCALE, sy + 74 * SCALE), "GEMS", fill=PINK2, font=_font(11, bold=False))
 
-    # ── Stats section ──
     sy2 = sy + sec_h + 16 * SCALE
     stat_h = 260 * SCALE
     draw.rounded_rectangle(
@@ -285,7 +309,6 @@ def generate_profile_card(
         draw.text((56 * SCALE, ry), label, fill=lc, font=f_stat_label)
         draw.text((240 * SCALE, ry), val, fill=vc, font=f_stat_val)
 
-    # Winrate progress bar
     bar_label_y = sy2 + 140 * SCALE
     bar_y = sy2 + 160 * SCALE
     bar_x = 56 * SCALE
@@ -300,7 +323,6 @@ def generate_profile_card(
         draw = ImageDraw.Draw(img)
         draw.rounded_rectangle([bar_x, bar_y, bar_x + fw, bar_y + bar_h], radius=6 * SCALE, fill=PURPLE)
 
-    # Financial stats
     fin_y = bar_y + bar_h + 24 * SCALE
     draw.line([(56 * SCALE, fin_y - 8 * SCALE), (W - 56 * SCALE, fin_y - 8 * SCALE)],
               fill=(40, 30, 75), width=1)
@@ -311,26 +333,22 @@ def generate_profile_card(
     draw.text((56 * SCALE, fin_y2), "Общий выигрыш", fill=GRAY, font=f_stat_label)
     draw.text((bar_x + bar_w - 80 * SCALE, fin_y2), f"{total_won:,}".replace(",", " "), fill=GOLD, font=f_stat_val)
 
-    # Referrals
     if ref_count > 0:
         fin_y3 = fin_y2 + 28 * SCALE
         draw.text((56 * SCALE, fin_y3), "Рефералы", fill=GRAY, font=f_stat_label)
         draw.text((bar_x + bar_w - 80 * SCALE, fin_y3), f"{ref_count}", fill=CYAN, font=f_stat_val)
 
-    # ── Bottom decorative line ──
     line_y2 = H - 68 * SCALE
     draw.line([(60 * SCALE, line_y2), (W - 60 * SCALE, line_y2)], fill=NEON_LINE, width=1)
     _dot(draw, 60 * SCALE, line_y2, 3 * SCALE, PURPLE)
     _dot(draw, W - 60 * SCALE, line_y2, 3 * SCALE, PURPLE)
 
-    # ── Footer ──
     f_footer = _font(11, bold=False)
     footer_text = "TON  \u2022  ИГРАЙ  \u2022  ЗАРАБАТЫВАЙ"
     bbox = draw.textbbox((0, 0), footer_text, font=f_footer)
     tw = bbox[2] - bbox[0]
     draw.text(((W - tw) // 2, H - 50 * SCALE), footer_text, fill=(70, 60, 110), font=f_footer)
 
-    # ── Small sparkle dots ──
     sparkles = [
         (45 * SCALE, 45 * SCALE, 2, (100, 70, 200)),
         (W - 50 * SCALE, 50 * SCALE, 2, (80, 60, 180)),
