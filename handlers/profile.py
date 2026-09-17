@@ -4,8 +4,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-import aiohttp
 import logging
+import urllib.request
+import ssl
+import json
+from functools import partial
 
 from config import BOT_TOKEN
 from database import db
@@ -15,6 +18,10 @@ from utils.profile_card import generate_profile_card
 
 router = Router()
 log = logging.getLogger(__name__)
+
+_SSL_CTX = ssl.create_default_context()
+_SSL_CTX.check_hostname = False
+_SSL_CTX.verify_mode = ssl.CERT_NONE
 
 
 def profile_kb():
@@ -31,37 +38,58 @@ def balance_kb():
     return kb.as_markup()
 
 
-async def _get_avatar(user_id: int) -> bytes | None:
+def _fetch_avatar_sync(user_id: int) -> bytes | None:
     try:
-        timeout = aiohttp.ClientTimeout(total=10)
-        connector = aiohttp.TCPConnector(ssl=False)
-        async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-            url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUserProfilePhotos"
-            async with session.get(url, params={"user_id": user_id, "limit": 1}) as resp:
-                data = await resp.json()
-                log.info("getUserProfilePhotos for %s: ok=%s, count=%s", user_id, data.get("ok"), len(data.get("result", {}).get("photos", [])) if data.get("ok") else "N/A")
-                if not data.get("ok") or not data["result"]["photos"]:
+        base = f"https://api.telegram.org/bot{BOT_TOKEN}"
+
+        photos_url = f"{base}/getUserProfilePhotos?user_id={user_id}&limit=1"
+        req1 = urllib.request.Request(photos_url)
+        with urllib.request.urlopen(req1, context=_SSL_CTX, timeout=10) as resp:
+            data = json.loads(resp.read())
+        log.info("getUserProfilePhotos for %s: ok=%s", user_id, data.get("ok"))
+        if not data.get("ok") or not data["result"]["photos"]:
+            return None
+
+        photo_entry = data["result"]["photos"][0]
+        last = photo_entry[-1]
+
+        if "video" in last:
+            thumb = last["video"].get("thumb")
+            if not thumb:
+                photo_obj = last.get("photo")
+                if photo_obj:
+                    file_id = photo_obj["file_id"]
+                else:
                     return None
-                photo = data["result"]["photos"][0][-1]
-                file_id = photo["file_id"]
-            url2 = f"https://api.telegram.org/bot{BOT_TOKEN}/getFile"
-            async with session.get(url2, params={"file_id": file_id}) as resp2:
-                data2 = await resp2.json()
-                log.info("getFile for %s: ok=%s", file_id[:20], data2.get("ok"))
-                if not data2.get("ok"):
-                    return None
-                file_path = data2["result"]["file_path"]
-            file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
-            async with session.get(file_url) as resp3:
-                log.info("download %s: status=%s", file_path, resp3.status)
-                if resp3.status == 200:
-                    avatar = await resp3.read()
-                    log.info("avatar downloaded: %d bytes", len(avatar))
-                    return avatar
-                return None
+            else:
+                file_id = thumb["file_id"]
+        else:
+            file_id = last["file_id"]
+
+        file_url = f"{base}/getFile?file_id={file_id}"
+        req2 = urllib.request.Request(file_url)
+        with urllib.request.urlopen(req2, context=_SSL_CTX, timeout=10) as resp2:
+            data2 = json.loads(resp2.read())
+        log.info("getFile: ok=%s", data2.get("ok"))
+        if not data2.get("ok"):
+            return None
+
+        file_path = data2["result"]["file_path"]
+        dl_url = f"{base}/file/{file_path}"
+        req3 = urllib.request.Request(dl_url)
+        with urllib.request.urlopen(req3, context=_SSL_CTX, timeout=10) as resp3:
+            avatar = resp3.read()
+        log.info("avatar downloaded: %d bytes", len(avatar))
+        return avatar
     except Exception as e:
-        log.warning("Failed to get avatar for %s: %s", user_id, e)
+        log.warning("Sync avatar fetch failed for %s: %s", user_id, e)
         return None
+
+
+async def _get_avatar(user_id: int) -> bytes | None:
+    import asyncio
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, partial(_fetch_avatar_sync, user_id))
 
 
 async def _make_card(user, stats, ref_count, from_user):
