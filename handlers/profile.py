@@ -34,7 +34,8 @@ def balance_kb():
 async def _get_avatar(user_id: int) -> bytes | None:
     try:
         timeout = aiohttp.ClientTimeout(total=10)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
+        connector = aiohttp.TCPConnector(ssl=False)
+        async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
             url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUserProfilePhotos"
             async with session.get(url, params={"user_id": user_id, "limit": 1}) as resp:
                 data = await resp.json()
