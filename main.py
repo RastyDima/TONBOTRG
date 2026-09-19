@@ -16,6 +16,7 @@ from handlers import register_handlers
 from utils import notify
 from utils.helpers import format_number, get_daily_bonus, get_weekly_bonus
 from webadmin import register_admin_routes
+from webapp_routes import register_webapp_routes
 
 logging.basicConfig(level=logging.INFO)
 
@@ -175,6 +176,7 @@ def build_app() -> web.Application:
     app.on_cleanup.append(stop_background)
     app.router.add_get("/health", health)
     register_admin_routes(app)
+    register_webapp_routes(app)
     setup_application(app, dp)
     return app
 
@@ -209,6 +211,7 @@ async def main() -> None:
 
         app.router.add_get("/health", health)
         register_admin_routes(app)
+        register_webapp_routes(app)
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, host="0.0.0.0", port=PORT)

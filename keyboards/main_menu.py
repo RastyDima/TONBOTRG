@@ -1,8 +1,13 @@
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import WebAppInfo
+
+from config import PUBLIC_BASE_URL
 
 
 def main_menu(is_admin: bool = False):
     kb = InlineKeyboardBuilder()
+    if PUBLIC_BASE_URL:
+        kb.button(text="🎮 Играть в WebApp", web_app=WebAppInfo(url=f"{PUBLIC_BASE_URL.rstrip('/')}/app/"))
     kb.button(text="🎮 Игры", callback_data="menu_games")
     kb.button(text="👤 Профиль", callback_data="profile")
     kb.button(text="💰 Баланс", callback_data="balance")
