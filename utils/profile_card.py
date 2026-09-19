@@ -261,6 +261,7 @@ def generate_profile_card(
     f_id = _font(13, bold=False)
     name_x = 220 * SCALE
     draw.text((name_x, 85 * SCALE), name, fill=WHITE, font=f_name)
+    title_wrapped = False
     if title:
         TITLE_DISPLAY = {
             "title_vip": ("VIP", GOLD, (60, 50, 20)),
@@ -271,14 +272,21 @@ def generate_profile_card(
             "title_ket": ("KET", (100, 255, 200), (15, 50, 40)),
         }
         t_text, t_color, t_bg = TITLE_DISPLAY.get(title, (title, GOLD, (50, 40, 15)))
-        name_w = draw.textbbox((0, 0), name, font=f_name)[2]
-        t_x = name_x + name_w + 12 * SCALE
-        t_y = 72 * SCALE
         f_title = _font(11, bold=False)
         t_bbox = draw.textbbox((0, 0), t_text, font=f_title)
         t_tw = t_bbox[2] - t_bbox[0]
         t_th = t_bbox[3] - t_bbox[1]
         pad_x, pad_y = 8 * SCALE, 4 * SCALE
+        name_w = draw.textbbox((0, 0), name, font=f_name)[2]
+        t_x_inline = name_x + name_w + 12 * SCALE
+        if t_x_inline + t_tw + pad_x < W - 20 * SCALE:
+            t_x = t_x_inline
+            t_y = 82 * SCALE
+            title_wrapped = False
+        else:
+            t_x = name_x
+            t_y = 85 * SCALE + int(f_name.size * 1.15)
+            title_wrapped = True
         badge_x0 = t_x - pad_x
         badge_y0 = t_y - pad_y
         badge_x1 = t_x + t_tw + pad_x
@@ -298,13 +306,14 @@ def generate_profile_card(
     level_name, level_color, level_bg, level_border = _calc_level(total_games, wins, total_bet)
     star_filled = {"BRONZE": 1, "SILVER": 2, "GOLD": 3, "DIAMOND": 3}
     filled = star_filled.get(level_name, 1)
+    stars_y_off = int(f_name.size * 1.15) if title_wrapped else 0
     for si in range(3):
         sc = level_color if si < filled else (50, 40, 80)
-        _draw_star(draw, name_x + si * 16 * SCALE, 130 * SCALE, 5 * SCALE, sc)
+        _draw_star(draw, name_x + si * 16 * SCALE, (130 * SCALE) + stars_y_off, 5 * SCALE, sc)
 
-    draw.text((name_x, 150 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
+    draw.text((name_x, (150 * SCALE) + stars_y_off), f"ID: {user_id}", fill=GRAY, font=f_id)
 
-    _decorative_dots(draw, W // 2, 200 * SCALE, 7, 10, (50, 35, 100))
+    _decorative_dots(draw, W // 2, (200 * SCALE) + stars_y_off, 7, 10, (50, 35, 100))
 
     sy = 220 * SCALE
     sec_h = 110 * SCALE
