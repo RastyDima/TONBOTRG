@@ -1,6 +1,7 @@
 """WebApp API routes for Telegram Mini App."""
 import json
 import logging
+from pathlib import Path
 
 from aiohttp import web
 
@@ -11,7 +12,7 @@ from webapp_auth import validate_telegram_init_data
 logger = logging.getLogger(__name__)
 
 WEBAPP_API_PREFIX = "/app"
-WEBAPP_STATIC_DIR = "webapp"
+WEBAPP_STATIC_DIR = Path(__file__).parent / "webapp"
 
 
 def _json_response(data, status=200):
@@ -31,15 +32,13 @@ def register_webapp_routes(app: web.Application) -> None:
     # --- Static files ---
     app.router.add_static(
         f"{WEBAPP_API_PREFIX}/static",
-        path=str(__import__("pathlib").Path(__file__).parent / WEBAPP_STATIC_DIR),
+        path=str(WEBAPP_STATIC_DIR),
         name="webapp_static",
     )
 
     # --- SPA entry point ---
     async def serve_index(request):
-        index_path = str(
-            __import__("pathlib").Path(__file__).parent / WEBAPP_STATIC_DIR / "index.html"
-        )
+        index_path = str(WEBAPP_STATIC_DIR / "index.html")
         return web.FileResponse(index_path)
 
     app.router.add_get(f"{WEBAPP_API_PREFIX}/", serve_index)
