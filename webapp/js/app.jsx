@@ -60,18 +60,32 @@ function Toast({ message, type }) {
 }
 
 function Stars({ filled, color = '#9656ff' }) {
-    const STAR = '\u2605';
-    const EMPTY = '\u2606';
     return (
-        <div className="stars">
+        <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
             {[1, 2, 3].map(i => (
-                <span key={i} style={{
-                    display: 'inline-block',
-                    fontSize: '22px',
-                    lineHeight: '1',
-                    color: i <= filled ? color : '#2a2050',
-                    textShadow: i <= filled ? `0 0 10px ${color}, 0 0 20px ${color}40` : 'none',
-                }}>{i <= filled ? STAR : EMPTY}</span>
+                <div key={i} style={{
+                    width: '18px',
+                    height: '18px',
+                    position: 'relative',
+                }}>
+                    <svg viewBox="0 0 24 24" width="18" height="18">
+                        <path
+                            d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                            fill={i <= filled ? color : '#2a2050'}
+                            stroke={i <= filled ? color : '#3a3060'}
+                            strokeWidth="1"
+                        />
+                        {i <= filled && (
+                            <path
+                                d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                                fill="none"
+                                stroke="white"
+                                strokeWidth="0.5"
+                                opacity="0.3"
+                            />
+                        )}
+                    </svg>
+                </div>
             ))}
         </div>
     );
