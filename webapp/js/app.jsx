@@ -59,17 +59,17 @@ function Toast({ message, type }) {
     return <div className={`toast ${type}`}>{message}</div>;
 }
 
-function Stars({ filled }) {
-    const starSvg = (color) => (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill={color}>
+function Stars({ filled, color = '#9656ff' }) {
+    const starSvg = (c) => (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill={c} xmlns="http://www.w3.org/2000/svg">
             <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
         </svg>
     );
     return (
         <div className="stars">
             {[1, 2, 3].map(i => (
-                <span key={i} className={`star ${i <= filled ? 'filled' : 'empty'}`}>
-                    {starSvg(i <= filled ? '#9656ff' : '#2a2050')}
+                <span key={i} className="star">
+                    {starSvg(i <= filled ? color : '#2a2050')}
                 </span>
             ))}
         </div>
@@ -137,7 +137,7 @@ function ProfilePage({ profile }) {
                             {titleNames[profile.active_title] || profile.active_title}
                         </div>
                     )}
-                    <Stars filled={level.filled} />
+                    <Stars filled={level.filled} color={level.color} />
                 </div>
             </div>
 
