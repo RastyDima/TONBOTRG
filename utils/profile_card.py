@@ -272,50 +272,46 @@ def generate_profile_card(
             "title_ket": ("KET", (100, 255, 200), (15, 50, 40)),
         }
         t_text, t_color, t_bg = TITLE_DISPLAY.get(title, (title, GOLD, (50, 40, 15)))
-        f_title = _font(11, bold=False)
+        f_title = _font(11, bold=True)
         t_bbox = draw.textbbox((0, 0), t_text, font=f_title)
         t_tw = t_bbox[2] - t_bbox[0]
         t_th = t_bbox[3] - t_bbox[1]
-        pad_x, pad_y = 8 * SCALE, 4 * SCALE
-        name_w = draw.textbbox((0, 0), name, font=f_name)[2]
-        t_x_inline = name_x + name_w + 12 * SCALE
-        if t_x_inline + t_tw + pad_x < W - 20 * SCALE:
-            t_x = t_x_inline
-            t_y = 82 * SCALE
-            title_wrapped = False
-        else:
-            t_x = name_x
-            t_y = 85 * SCALE + int(f_name.size * 1.15)
-            title_wrapped = True
-        badge_x0 = t_x - pad_x
-        badge_y0 = t_y - pad_y
-        badge_x1 = t_x + t_tw + pad_x
-        badge_y1 = t_y + t_th + pad_y
+        banner_y = int(85 * SCALE + f_name.size * 1.2)
+        banner_h = t_th + 14 * SCALE
+        banner_x0 = name_x - 6 * SCALE
+        banner_x1 = W - 36 * SCALE
+        banner_y0 = banner_y
+        banner_y1 = banner_y + banner_h
+        t_x = (banner_x0 + banner_x1) // 2 - t_tw // 2
+        t_y = banner_y + (banner_h - t_th) // 2
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         od = ImageDraw.Draw(overlay)
-        for i in range(8, 0, -1):
-            alpha = int(40 * (1 - i / 8))
-            od.rounded_rectangle([badge_x0 - i, badge_y0 - i, badge_x1 + i, badge_y1 + i],
+        for i in range(12, 0, -1):
+            alpha = int(35 * (1 - i / 12))
+            od.rounded_rectangle([banner_x0 - i, banner_y0 - i, banner_x1 + i, banner_y1 + i],
                                  radius=8 * SCALE, fill=t_color + (alpha,))
         img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
         draw = ImageDraw.Draw(img)
-        draw.rounded_rectangle([badge_x0, badge_y0, badge_x1, badge_y1],
-                               radius=6 * SCALE, fill=t_bg, outline=t_color, width=1)
+        _gradient_h(img, (banner_x0, banner_y0, banner_x1, banner_y1), t_bg, (t_bg[0] // 2, t_bg[1] // 2, t_bg[2] // 2))
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle([banner_x0, banner_y0, banner_x1, banner_y1],
+                               radius=6 * SCALE, outline=t_color, width=2 * SCALE)
         draw.text((t_x, t_y), t_text, fill=t_color, font=f_title)
+        title_wrapped = True
 
     level_name, level_color, level_bg, level_border = _calc_level(total_games, wins, total_bet)
     star_filled = {"BRONZE": 1, "SILVER": 2, "GOLD": 3, "DIAMOND": 3}
     filled = star_filled.get(level_name, 1)
-    stars_y_off = int(f_name.size * 1.15) if title_wrapped else 0
+    content_top = banner_y1 + 16 * SCALE if title_wrapped else 130 * SCALE
     for si in range(3):
         sc = level_color if si < filled else (50, 40, 80)
-        _draw_star(draw, name_x + si * 16 * SCALE, (130 * SCALE) + stars_y_off, 5 * SCALE, sc)
+        _draw_star(draw, name_x + si * 16 * SCALE, content_top, 5 * SCALE, sc)
 
-    draw.text((name_x, (150 * SCALE) + stars_y_off), f"ID: {user_id}", fill=GRAY, font=f_id)
+    draw.text((name_x, content_top + 20 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
 
-    _decorative_dots(draw, W // 2, (200 * SCALE) + stars_y_off, 7, 10, (50, 35, 100))
+    _decorative_dots(draw, W // 2, content_top + 55 * SCALE, 7, 10, (50, 35, 100))
 
-    sy = 220 * SCALE
+    sy = content_top + 80 * SCALE
     sec_h = 110 * SCALE
     draw.rounded_rectangle(
         (36 * SCALE, sy, W - 36 * SCALE, sy + sec_h),
