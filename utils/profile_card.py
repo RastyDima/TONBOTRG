@@ -263,16 +263,37 @@ def generate_profile_card(
     draw.text((name_x, 90 * SCALE), name, fill=WHITE, font=f_name)
     if title:
         TITLE_DISPLAY = {
-            "title_vip": ("VIP", GOLD),
-            "title_legend": ("Legend", (255, 180, 50)),
-            "title_whale": ("Whale", CYAN),
-            "title_god": ("God", PURPLE2),
-            "title_owner": ("Владелец", (255, 80, 80)),
-            "title_ket": ("Кет", (100, 255, 200)),
+            "title_vip": ("VIP", GOLD, (60, 50, 20)),
+            "title_legend": ("LEGEND", (255, 180, 50), (60, 40, 15)),
+            "title_whale": ("WHALE", CYAN, (15, 40, 60)),
+            "title_god": ("GOD", PURPLE2, (40, 20, 60)),
+            "title_owner": ("OWNER", (255, 80, 80), (60, 15, 20)),
+            "title_ket": ("KET", (100, 255, 200), (15, 50, 40)),
         }
-        t_text, t_color = TITLE_DISPLAY.get(title, (title, GOLD))
+        t_text, t_color, t_bg = TITLE_DISPLAY.get(title, (title, GOLD, (50, 40, 15)))
         name_w = draw.textbbox((0, 0), name, font=f_name)[2]
-        draw.text((name_x + name_w + 10 * SCALE, 90 * SCALE), t_text, fill=t_color, font=_font(20))
+        t_x = name_x + name_w + 12 * SCALE
+        t_y = 88 * SCALE
+        f_title = _font(11, bold=False)
+        t_bbox = draw.textbbox((0, 0), t_text, font=f_title)
+        t_tw = t_bbox[2] - t_bbox[0]
+        t_th = t_bbox[3] - t_bbox[1]
+        pad_x, pad_y = 8 * SCALE, 4 * SCALE
+        badge_x0 = t_x - pad_x
+        badge_y0 = t_y - pad_y
+        badge_x1 = t_x + t_tw + pad_x
+        badge_y1 = t_y + t_th + pad_y
+        overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        od = ImageDraw.Draw(overlay)
+        for i in range(8, 0, -1):
+            alpha = int(40 * (1 - i / 8))
+            od.rounded_rectangle([badge_x0 - i, badge_y0 - i, badge_x1 + i, badge_y1 + i],
+                                 radius=8 * SCALE, fill=t_color + (alpha,))
+        img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle([badge_x0, badge_y0, badge_x1, badge_y1],
+                               radius=6 * SCALE, fill=t_bg, outline=t_color, width=1)
+        draw.text((t_x, t_y), t_text, fill=t_color, font=f_title)
     draw.text((name_x, 128 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
 
     level_name, level_color, level_bg, level_border = _calc_level(total_games, wins, total_bet)
