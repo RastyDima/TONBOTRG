@@ -120,6 +120,7 @@ body {
     background: var(--bg-section);
     color: var(--purple);
     flex-shrink: 0;
+    overflow: hidden;
 }
 
 .profile-info {

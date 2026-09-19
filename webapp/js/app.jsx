@@ -60,10 +60,17 @@ function Toast({ message, type }) {
 }
 
 function Stars({ filled }) {
+    const starSvg = (color) => (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill={color}>
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+    );
     return (
         <div className="stars">
             {[1, 2, 3].map(i => (
-                <span key={i} className={`star ${i <= filled ? 'filled' : 'empty'}`}>★</span>
+                <span key={i} className={`star ${i <= filled ? 'filled' : 'empty'}`}>
+                    {starSvg(i <= filled ? '#9656ff' : '#2a2050')}
+                </span>
             ))}
         </div>
     );
@@ -104,11 +111,17 @@ function ProfilePage({ profile }) {
         title_god: 'GOD', title_owner: 'OWNER', title_ket: 'KET',
     };
     const initials = (profile.first_name || 'K')[0].toUpperCase();
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    const photoUrl = tgUser?.photo_url;
 
     return (
         <div>
             <div className="profile-header">
-                <div className="avatar">{initials}</div>
+                <div className="avatar">
+                    {photoUrl ? (
+                        <img src={photoUrl} alt="" style={{width:'100%',height:'100%',borderRadius:'50%',objectFit:'cover'}} />
+                    ) : initials}
+                </div>
                 <div className="profile-info">
                     <div className="profile-name">{profile.first_name || 'Игрок'}</div>
                     <div className="profile-id">ID: {profile.user_id}</div>
