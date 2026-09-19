@@ -440,16 +440,8 @@ body {
     margin-top: 6px;
 }
 
-.star {
-    font-size: 16px;
-}
-
-.star.filled {
-    color: var(--purple);
-}
-
-.star.empty {
-    color: var(--border);
+.stars span {
+    font-family: serif;
 }
 
 /* Games grid */

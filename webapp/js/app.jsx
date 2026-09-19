@@ -60,16 +60,18 @@ function Toast({ message, type }) {
 }
 
 function Stars({ filled, color = '#9656ff' }) {
+    const STAR = '\u2605';
+    const EMPTY = '\u2606';
     return (
         <div className="stars">
             {[1, 2, 3].map(i => (
                 <span key={i} style={{
                     display: 'inline-block',
-                    fontSize: '20px',
+                    fontSize: '22px',
                     lineHeight: '1',
                     color: i <= filled ? color : '#2a2050',
-                    textShadow: i <= filled ? `0 0 8px ${color}` : 'none',
-                }}>&#9733;</span>
+                    textShadow: i <= filled ? `0 0 10px ${color}, 0 0 20px ${color}40` : 'none',
+                }}>{i <= filled ? STAR : EMPTY}</span>
             ))}
         </div>
     );
