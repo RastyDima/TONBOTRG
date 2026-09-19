@@ -94,6 +94,7 @@ function Stars({ filled, color = '#9656ff' }) {
 function NavBar({ page, onNavigate }) {
     const items = [
         { id: 'profile', icon: '👤', label: 'Профиль' },
+        { id: 'leaderboard', icon: '🏆', label: 'Рейтинг' },
         { id: 'games', icon: '🎮', label: 'Игры' },
         { id: 'shop', icon: '🛒', label: 'Магазин' },
         { id: 'ref', icon: '👥', label: 'Рефералы' },
@@ -439,6 +440,101 @@ function ReferralPage({ profile }) {
     );
 }
 
+function LeaderboardPage({ profile }) {
+    const [tab, setTab] = useState('balance');
+    const [data, setData] = useState(null);
+
+    useEffect(() => {
+        setData(null);
+        api(`/leaderboard?mode=${tab}&limit=20`).then(setData).catch(() => {});
+    }, [tab]);
+
+    const medals = ['🥇', '🥈', '🥉'];
+    const tabs = [
+        { id: 'balance', label: '💰 Баланс' },
+        { id: 'wins', label: '🏆 Победы' },
+    ];
+
+    return (
+        <div>
+            <div className="section-title">🏆 Рейтинг</div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+                {tabs.map(t => (
+                    <button
+                        key={t.id}
+                        className={`btn btn-small ${tab === t.id ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => setTab(t.id)}
+                    >
+                        {t.label}
+                    </button>
+                ))}
+            </div>
+            {!data ? <Loading /> : (
+                <>
+                    {data.my_rank && (
+                        <div className="card" style={{ textAlign: 'center', padding: '12px' }}>
+                            <span style={{ color: 'var(--text-dim)', fontSize: '13px' }}>Ваша позиция: </span>
+                            <span style={{ color: 'var(--gold)', fontWeight: 700, fontSize: '18px' }}>#{data.my_rank}</span>
+                        </div>
+                    )}
+                    <div className="card">
+                        {data.players.length === 0 ? (
+                            <p style={{ textAlign: 'center', color: 'var(--text-dim)', padding: '20px 0' }}>
+                                Пока нет данных
+                            </p>
+                        ) : data.players.map(p => (
+                            <div key={p.user_id} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                padding: '10px 0',
+                                borderBottom: '1px solid var(--border)',
+                                opacity: p.is_me ? 1 : 0.85,
+                                background: p.is_me ? 'rgba(150,86,255,0.08)' : 'transparent',
+                                margin: p.is_me ? '0 -8px' : 0,
+                                padding: p.is_me ? '10px 8px' : '10px 0',
+                                borderRadius: p.is_me ? '8px' : 0,
+                            }}>
+                                <div style={{
+                                    width: '28px',
+                                    textAlign: 'center',
+                                    fontSize: p.rank <= 3 ? '20px' : '15px',
+                                    fontWeight: 700,
+                                    color: p.rank <= 3 ? 'var(--gold)' : 'var(--text-dim)',
+                                }}>
+                                    {p.rank <= 3 ? medals[p.rank - 1] : p.rank}
+                                </div>
+                                <div className="avatar" style={{ width: '36px', height: '36px', fontSize: '16px', border: p.is_me ? '2px solid var(--purple)' : '1px solid var(--border)' }}>
+                                    {(p.first_name || 'K')[0].toUpperCase()}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {p.first_name || 'Игрок'}
+                                        {p.username && <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}> @{p.username}</span>}
+                                    </div>
+                                </div>
+                                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                    {tab === 'balance' ? (
+                                        <>
+                                            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--gold)' }}>{formatNumber(p.max_balance)}</div>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>TON</div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--green)' }}>{formatNumber(p.wins)}</div>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{p.total_games} игр</div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
 function AuthScreen({ onAuth }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(false);
@@ -564,6 +660,7 @@ function App() {
             {page === 'games' && <GamesPage />}
             {page === 'shop' && <ShopPage profile={profile} refreshProfile={refreshProfile} />}
             {page === 'ref' && <ReferralPage profile={profile} />}
+            {page === 'leaderboard' && <LeaderboardPage profile={profile} />}
 
             <NavBar page={page} onNavigate={setPage} />
         </div>

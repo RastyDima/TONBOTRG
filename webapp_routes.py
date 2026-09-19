@@ -233,3 +233,51 @@ def register_webapp_routes(app: web.Application) -> None:
     app.router.add_get(f"{WEBAPP_API_PREFIX}/api/shop", api_shop)
     app.router.add_post(f"{WEBAPP_API_PREFIX}/api/shop/buy", api_shop_buy)
     app.router.add_post(f"{WEBAPP_API_PREFIX}/api/shop/equip", api_shop_equip)
+
+    async def api_leaderboard(request):
+        user = _get_user_from_request(request)
+        mode = request.query.get("mode", "balance")
+        limit = min(int(request.query.get("limit", 20)), 50)
+
+        if mode == "wins":
+            top = db.top_wins(limit)
+        elif mode == "games":
+            top = db.top_balance(limit)
+        else:
+            top = db.top_max_balance(limit)
+
+        current_user_id = user["id"] if user else 0
+        results = []
+        for i, row in enumerate(top, 1):
+            results.append({
+                "rank": i,
+                "user_id": row["id"],
+                "username": row.get("username"),
+                "first_name": row.get("first_name", "Игрок"),
+                "balance": row.get("balance", 0),
+                "max_balance": row.get("max_balance", 0),
+                "wins": row.get("wins", 0) if "wins" in row else 0,
+                "total_games": row.get("total_games", 0) if "total_games" in row else 0,
+                "is_me": row["id"] == current_user_id,
+            })
+
+        my_rank = None
+        if user:
+            if mode == "wins":
+                all_top = db.top_wins(1000)
+            elif mode == "games":
+                all_top = db.top_balance(1000)
+            else:
+                all_top = db.top_max_balance(1000)
+            for i, row in enumerate(all_top, 1):
+                if row["id"] == current_user_id:
+                    my_rank = i
+                    break
+
+        return _json_response({
+            "mode": mode,
+            "players": results,
+            "my_rank": my_rank,
+        })
+
+    app.router.add_get(f"{WEBAPP_API_PREFIX}/api/leaderboard", api_leaderboard)
