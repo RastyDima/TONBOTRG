@@ -273,7 +273,7 @@ def generate_profile_card(
         t_text, t_color, t_bg = TITLE_DISPLAY.get(title, (title, GOLD, (50, 40, 15)))
         name_w = draw.textbbox((0, 0), name, font=f_name)[2]
         t_x = name_x + name_w + 12 * SCALE
-        t_y = 78 * SCALE
+        t_y = 72 * SCALE
         f_title = _font(11, bold=False)
         t_bbox = draw.textbbox((0, 0), t_text, font=f_title)
         t_tw = t_bbox[2] - t_bbox[0]
@@ -300,11 +300,11 @@ def generate_profile_card(
     filled = star_filled.get(level_name, 1)
     for si in range(3):
         sc = level_color if si < filled else (50, 40, 80)
-        _draw_star(draw, name_x + si * 16 * SCALE, 125 * SCALE, 5 * SCALE, sc)
+        _draw_star(draw, name_x + si * 16 * SCALE, 130 * SCALE, 5 * SCALE, sc)
 
-    draw.text((name_x, 145 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
+    draw.text((name_x, 150 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
 
-    _decorative_dots(draw, W // 2, 195 * SCALE, 7, 10, (50, 35, 100))
+    _decorative_dots(draw, W // 2, 200 * SCALE, 7, 10, (50, 35, 100))
 
     sy = 220 * SCALE
     sec_h = 110 * SCALE
