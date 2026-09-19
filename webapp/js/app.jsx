@@ -413,14 +413,28 @@ function ReferralPage({ profile }) {
 
 function AuthScreen({ onAuth }) {
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(false);
+
+    useEffect(() => {
+        const tg = window.Telegram?.WebApp;
+        const data = tg?.initData || tg?.initDataUnsafe;
+        if (data) {
+            setLoading(true);
+            onAuth(data);
+        } else {
+            setError(true);
+        }
+    }, []);
 
     const handleAuth = () => {
         setLoading(true);
-        if (window.Telegram?.WebApp?.initData) {
-            onAuth(window.Telegram.WebApp.initData);
+        const tg = window.Telegram?.WebApp;
+        const data = tg?.initData || tg?.initDataUnsafe;
+        if (data) {
+            onAuth(data);
         } else {
             setLoading(false);
-            alert('Откройте приложение через Telegram бота');
+            setError(true);
         }
     };
 
@@ -429,9 +443,22 @@ function AuthScreen({ onAuth }) {
             <div className="logo">🎰</div>
             <h2>TON Casino</h2>
             <p>Играй и зарабатывай</p>
-            <button className="btn btn-primary" onClick={handleAuth} disabled={loading}>
-                {loading ? 'Вход...' : 'Войти через Telegram'}
-            </button>
+            {loading ? (
+                <p style={{ color: 'var(--purple)' }}>Вход...</p>
+            ) : error ? (
+                <>
+                    <p style={{ color: 'var(--red)', marginBottom: 16 }}>
+                        Откройте приложение из бота
+                    </p>
+                    <button className="btn btn-primary" onClick={handleAuth}>
+                        Попробовать снова
+                    </button>
+                </>
+            ) : (
+                <button className="btn btn-primary" onClick={handleAuth}>
+                    Войти через Telegram
+                </button>
+            )}
         </div>
     );
 }
@@ -487,9 +514,11 @@ function App() {
                 localStorage.setItem('webapp_token', data.token);
                 setUser({ user_id: data.user_id });
                 api('/profile').then(setProfile);
+            } else {
+                console.error('Auth failed:', data);
             }
         } catch (e) {
-            alert('Ошибка авторизации');
+            console.error('Auth error:', e);
         }
     };
 
