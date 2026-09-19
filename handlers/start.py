@@ -84,7 +84,14 @@ async def back_to_menu(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text("Используйте /start")
         return
     is_admin = callback.from_user.id in ADMIN_IDS or bool(user["is_admin"])
-    await callback.message.edit_text(menu_text(user), reply_markup=main_menu(is_admin))
+    try:
+        await callback.message.edit_text(menu_text(user), reply_markup=main_menu(is_admin))
+    except Exception:
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer(menu_text(user), reply_markup=main_menu(is_admin))
 
 
 @router.callback_query(F.data == "cancel", StateFilter("*"))

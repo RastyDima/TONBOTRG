@@ -23,6 +23,10 @@ SHOP_ITEMS = {
         {"id": "title_whale", "name": "Whale", "price": 5_000_000},
         {"id": "title_god", "name": "God", "price": 10_000_000},
     ],
+    "exclusive_titles": [
+        {"id": "title_owner", "name": "Владелец"},
+        {"id": "title_ket", "name": "Кет"},
+    ],
 }
 
 FRAME_BY_ID = {item["id"]: item for item in SHOP_ITEMS["frames"]}

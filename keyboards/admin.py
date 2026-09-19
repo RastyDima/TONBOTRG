@@ -7,6 +7,7 @@ def admin_menu():
     kb = InlineKeyboardBuilder()
     kb.button(text="💰 Выдать TON", callback_data="admin_give")
     kb.button(text="💎 Выдать рубины", callback_data="admin_give_rubies")
+    kb.button(text="🏷 Выдать титул", callback_data="admin_give_title")
     kb.button(text="🎟 Промокоды", callback_data="admin_promos")
     kb.button(text="🚫 Заблокировать", callback_data="admin_block")
     kb.button(text="✅ Разблокировать", callback_data="admin_unblock")

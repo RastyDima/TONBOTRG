@@ -262,8 +262,17 @@ def generate_profile_card(
     name_x = 220 * SCALE
     draw.text((name_x, 90 * SCALE), name, fill=WHITE, font=f_name)
     if title:
+        TITLE_DISPLAY = {
+            "title_vip": ("VIP", GOLD),
+            "title_legend": ("Legend", (255, 180, 50)),
+            "title_whale": ("Whale", CYAN),
+            "title_god": ("God", PURPLE2),
+            "title_owner": ("Владелец", (255, 80, 80)),
+            "title_ket": ("Кет", (100, 255, 200)),
+        }
+        t_text, t_color = TITLE_DISPLAY.get(title, (title, GOLD))
         name_w = draw.textbbox((0, 0), name, font=f_name)[2]
-        draw.text((name_x + name_w + 10 * SCALE, 90 * SCALE), title, fill=GOLD, font=_font(20))
+        draw.text((name_x + name_w + 10 * SCALE, 90 * SCALE), t_text, fill=t_color, font=_font(20))
     draw.text((name_x, 128 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
 
     level_name, level_color, level_bg, level_border = _calc_level(total_games, wins, total_bet)

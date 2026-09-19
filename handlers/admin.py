@@ -22,6 +22,8 @@ class AdminStates(StatesGroup):
     give_amount = State()
     give_rubies_user = State()
     give_rubies_amount = State()
+    give_title_user = State()
+    give_title_select = State()
     block_user = State()
     unblock_user = State()
 
@@ -171,6 +173,79 @@ async def admin_give_rubies_amount(message: Message, state: FSMContext):
         f"💎 Рубины: {latest.get('rubies', 0) or 0}",
     )
     await message.answer(f"✅ Игроку <b>{user_label(target)}</b> начислено {amount} 💎")
+
+
+ALL_TITLES = [
+    {"id": "title_vip", "name": "VIP"},
+    {"id": "title_legend", "name": "Legend"},
+    {"id": "title_whale", "name": "Whale"},
+    {"id": "title_god", "name": "God"},
+    {"id": "title_owner", "name": "Владелец"},
+    {"id": "title_ket", "name": "Кет"},
+]
+TITLE_BY_ID = {t["id"]: t for t in ALL_TITLES}
+
+
+def _title_list_kb():
+    kb = InlineKeyboardBuilder()
+    for t in ALL_TITLES:
+        kb.button(text=t["name"], callback_data=f"admin_title_pick:{t['id']}")
+    kb.row(back_button("admin"))
+    kb.adjust(2)
+    return kb.as_markup()
+
+
+@router.callback_query(F.data == "admin_give_title", StateFilter("*"))
+async def admin_give_title_start(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(AdminStates.give_title_user)
+    await callback.answer()
+    await callback.message.edit_text(
+        "🏷 <b>Выдача титула</b>\n\nОтправьте ID или @username игрока:",
+        reply_markup=cancel_kb(),
+    )
+
+
+@router.message(AdminStates.give_title_user)
+async def admin_give_title_user(message: Message, state: FSMContext):
+    user = resolve_user(message.text)
+    if not user:
+        await message.answer("❌ Пользователь не найден. Попробуйте ещё раз:")
+        return
+    await state.update_data(target_id=user["id"])
+    await state.set_state(AdminStates.give_title_select)
+    active = user.get("active_title") or "нет"
+    await message.answer(
+        f"Игрок: <b>{user_label(user)}</b> (ID: <code>{user['id']}</code>)\n\n"
+        f"🏷 Текущий титул: <b>{active}</b>\n\n"
+        f"Выберите титул для выдачи:",
+        reply_markup=_title_list_kb(),
+    )
+
+
+@router.callback_query(F.data.startswith("admin_title_pick:"), AdminStates.give_title_select)
+async def admin_title_pick(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    data = await state.get_data()
+    target_id = data.get("target_id")
+    title_id = callback.data.split(":", 1)[1]
+    title = TITLE_BY_ID.get(title_id)
+    if not title:
+        await callback.answer("❌ Титул не найден", show_alert=True)
+        return
+    target = db.get_user(target_id)
+    if not target:
+        await state.clear()
+        await callback.message.edit_text("❌ Пользователь не найден.")
+        return
+    db.set_active_title(target_id, title_id)
+    await state.clear()
+    await notify_send(
+        target_id,
+        f"🏷 <b>Вам выдан титул: {title['name']}</b>",
+    )
+    await callback.message.edit_text(
+        f"✅ Игроку <b>{user_label(target)}</b> выдан титул <b>{title['name']}</b>",
+    )
 
 
 @router.callback_query(F.data == "admin_block", StateFilter("*"))
