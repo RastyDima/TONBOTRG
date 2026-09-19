@@ -260,7 +260,7 @@ def generate_profile_card(
     f_name = _font(30)
     f_id = _font(13, bold=False)
     name_x = 220 * SCALE
-    draw.text((name_x, 90 * SCALE), name, fill=WHITE, font=f_name)
+    draw.text((name_x, 85 * SCALE), name, fill=WHITE, font=f_name)
     if title:
         TITLE_DISPLAY = {
             "title_vip": ("VIP", GOLD, (60, 50, 20)),
@@ -273,7 +273,7 @@ def generate_profile_card(
         t_text, t_color, t_bg = TITLE_DISPLAY.get(title, (title, GOLD, (50, 40, 15)))
         name_w = draw.textbbox((0, 0), name, font=f_name)[2]
         t_x = name_x + name_w + 12 * SCALE
-        t_y = 88 * SCALE
+        t_y = 83 * SCALE
         f_title = _font(11, bold=False)
         t_bbox = draw.textbbox((0, 0), t_text, font=f_title)
         t_tw = t_bbox[2] - t_bbox[0]
@@ -294,14 +294,12 @@ def generate_profile_card(
         draw.rounded_rectangle([badge_x0, badge_y0, badge_x1, badge_y1],
                                radius=6 * SCALE, fill=t_bg, outline=t_color, width=1)
         draw.text((t_x, t_y), t_text, fill=t_color, font=f_title)
-    draw.text((name_x, 128 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
 
     level_name, level_color, level_bg, level_border = _calc_level(total_games, wins, total_bet)
-    badge_x = name_x + draw.textbbox((0, 0), name, font=f_name)[2] + 14 * SCALE
-    badge_cy = 96 * SCALE
-    _draw_badge(draw, badge_x, badge_cy, level_name, level_bg, level_color, level_border)
+    _draw_badge(draw, name_x, 120 * SCALE, level_name, level_bg, level_color, level_border)
+    _draw_star(draw, name_x, 138 * SCALE, 4 * SCALE, level_color)
 
-    _draw_star(draw, badge_x, badge_cy + 18 * SCALE, 4 * SCALE, level_color)
+    draw.text((name_x, 150 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
 
     _decorative_dots(draw, W // 2, 195 * SCALE, 7, 10, (50, 35, 100))
 
