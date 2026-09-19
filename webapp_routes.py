@@ -47,9 +47,10 @@ def register_webapp_routes(app: web.Application) -> None:
     # --- Auth middleware ---
     @web.middleware
     async def auth_middleware(request, handler):
-        # Skip auth for static files and index
-        if request.path.startswith(f"{WEBAPP_API_PREFIX}/static") or request.path == f"{WEBAPP_API_PREFIX}/":
+        # Only intercept /app/api/* requests
+        if not request.path.startswith(f"{WEBAPP_API_PREFIX}/api/"):
             return await handler(request)
+        # Skip auth for the auth endpoint itself
         if request.path == f"{WEBAPP_API_PREFIX}/api/auth":
             return await handler(request)
 
