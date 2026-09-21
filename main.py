@@ -8,7 +8,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import CallbackQuery, Message, Update
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 
 from config import BOT_TOKEN, PORT, PUBLIC_BASE_URL, WEBHOOK_PATH, WEBHOOK_SECRET, WEBHOOK_URL
 from database import db
@@ -20,7 +20,7 @@ from webapp_routes import register_webapp_routes
 
 logging.basicConfig(level=logging.INFO)
 
-APP_VERSION = "8feb36c+marked"
+APP_VERSION = "9a2c4d1+callbacks-fix"
 logging.info("Starting TONBOTRG build %s (WEBHOOK=%s, backend=%s)", APP_VERSION, bool(WEBHOOK_URL), type(db).__name__)
 
 REMINDER_INTERVAL = 30 * 60  # секунд
@@ -162,6 +162,7 @@ def build_app() -> web.Application:
 
     async def start_background(app) -> None:
         notify.set_bot(bot)
+        await dp.emit_startup()
         app["reminder_task"] = start_reminder_loop()
         app["heartbeat_task"] = start_heartbeat()
         app["webhook_guard_task"] = asyncio.create_task(webhook_guard_loop(bot))
@@ -171,13 +172,13 @@ def build_app() -> web.Application:
             task = app.get(key)
             if task:
                 task.cancel()
+        await dp.emit_shutdown()
 
     app.on_startup.append(start_background)
     app.on_cleanup.append(stop_background)
     app.router.add_get("/health", health)
     register_admin_routes(app)
     register_webapp_routes(app)
-    setup_application(app, dp)
     return app
 
 
