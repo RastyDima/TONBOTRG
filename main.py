@@ -20,7 +20,7 @@ from webapp_routes import register_webapp_routes
 
 logging.basicConfig(level=logging.INFO)
 
-APP_VERSION = "d1c3a7b+kb-fixed"
+APP_VERSION = "c4f8e2a+full-debug"
 logging.info("Starting TONBOTRG build %s (WEBHOOK=%s, backend=%s)", APP_VERSION, bool(WEBHOOK_URL), type(db).__name__)
 
 REMINDER_INTERVAL = 30 * 60  # секунд
@@ -121,8 +121,13 @@ class BlockedUserMiddleware(BaseMiddleware):
             inner = event.event if isinstance(event, Update) else event
             utype = type(inner).__name__
             user = getattr(inner, "from_user", None)
+            uid = user.id if user else "?"
             if isinstance(inner, CallbackQuery):
-                logging.info("CB query: data=%s user=%s", inner.data, user.id if user else "?")
+                logging.info("CB query: data=%s user=%s", inner.data, uid)
+            elif isinstance(inner, Message):
+                logging.info("MSG: text=%s user=%s", inner.text[:50] if inner.text else "?", uid)
+            else:
+                logging.info("UPDATE type=%s user=%s", utype, uid)
             if user is not None and db.is_user_blocked(user.id):
                 if isinstance(inner, Message):
                     await inner.answer("🚫 Вы заблокированы. Обратитесь к администратору.")

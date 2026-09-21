@@ -1,6 +1,4 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-
-from config import PUBLIC_BASE_URL
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
 def main_menu(is_admin: bool = False):
@@ -24,9 +22,5 @@ def main_menu(is_admin: bool = False):
     if is_admin:
         rows.append([
             InlineKeyboardButton(text="⚙️ Админ-панель", callback_data="admin"),
-        ])
-    if PUBLIC_BASE_URL:
-        rows.append([
-            InlineKeyboardButton(text="🌐 Играть в Mini App", web_app=WebAppInfo(url=f"{PUBLIC_BASE_URL.rstrip('/')}/app/")),
         ])
     return InlineKeyboardMarkup(inline_keyboard=rows)
