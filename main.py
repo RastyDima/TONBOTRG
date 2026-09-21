@@ -20,7 +20,7 @@ from webapp_routes import register_webapp_routes
 
 logging.basicConfig(level=logging.INFO)
 
-APP_VERSION = "b3e7f9a+debug-kb"
+APP_VERSION = "d1c3a7b+kb-fixed"
 logging.info("Starting TONBOTRG build %s (WEBHOOK=%s, backend=%s)", APP_VERSION, bool(WEBHOOK_URL), type(db).__name__)
 
 REMINDER_INTERVAL = 30 * 60  # секунд
@@ -119,7 +119,10 @@ class BlockedUserMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
         try:
             inner = event.event if isinstance(event, Update) else event
+            utype = type(inner).__name__
             user = getattr(inner, "from_user", None)
+            if isinstance(inner, CallbackQuery):
+                logging.info("CB query: data=%s user=%s", inner.data, user.id if user else "?")
             if user is not None and db.is_user_blocked(user.id):
                 if isinstance(inner, Message):
                     await inner.answer("🚫 Вы заблокированы. Обратитесь к администратору.")
@@ -128,27 +131,13 @@ class BlockedUserMiddleware(BaseMiddleware):
                 return
             return await handler(event, data)
         except Exception:
-            logging.exception("BlockedUserMiddleware error")
+            logging.exception("BlockedUserMiddleware error for %s", type(event).__name__)
             return await handler(event, data)
 
 
 def build_app() -> web.Application:
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher(storage=MemoryStorage())
-
-    @dp.update.outer_middleware()
-    async def debug_update_logger(event, handler):
-        update = event.event if isinstance(event, Update) else event
-        update_type = "unknown"
-        if isinstance(update, CallbackQuery):
-            update_type = f"callback_query(data={update.data!r})"
-        elif isinstance(update, Message):
-            update_type = f"message(text={update.text!r})"
-        logging.info("UPDATE INCOMING: type=%s user=%s", update_type, getattr(update, "from_user", None))
-        result = await handler(event)
-        logging.info("UPDATE PROCESSED: type=%s", update_type)
-        return result
-
     dp.update.middleware(BlockedUserMiddleware())
     register_handlers(dp)
 
