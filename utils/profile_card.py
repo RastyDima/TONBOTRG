@@ -129,6 +129,20 @@ def _calc_level(total_games, wins, total_bet):
     return "BRONZE", (200, 140, 80), (150, 100, 50), (220, 160, 100)
 
 
+def _level_color(level: int):
+    if level >= 30:
+        return (255, 80, 80), (255, 50, 50)
+    if level >= 20:
+        return (255, 180, 50), (255, 140, 30)
+    if level >= 15:
+        return (180, 120, 255), (150, 90, 255)
+    if level >= 10:
+        return (80, 200, 255), (60, 180, 255)
+    if level >= 5:
+        return (60, 220, 130), (40, 200, 110)
+    return (180, 160, 200), (140, 130, 175)
+
+
 FRAME_COLORS = {
     "frame_neon_green": (0, 255, 120),
     "frame_fire_red": (255, 60, 40),
@@ -152,6 +166,7 @@ def generate_profile_card(
     frame: str | None = None,
     avatar_bytes: bytes | None = None,
     title: str | None = None,
+    xp: int = 0,
 ) -> io.BytesIO:
     BG_TOP = (12, 8, 24)
     BG_BOT = (18, 12, 35)
@@ -299,15 +314,35 @@ def generate_profile_card(
         draw.text((t_x, t_y), t_text, fill=t_color, font=f_title)
         title_wrapped = True
 
-    level_name, level_color, level_bg, level_border = _calc_level(total_games, wins, total_bet)
-    star_filled = {"BRONZE": 1, "SILVER": 2, "GOLD": 3, "DIAMOND": 3}
-    filled = star_filled.get(level_name, 1)
     content_top = banner_y1 + 16 * SCALE if title_wrapped else 130 * SCALE
-    for si in range(3):
-        sc = level_color if si < filled else (50, 40, 80)
-        _draw_star(draw, name_x + si * 16 * SCALE, content_top, 5 * SCALE, sc)
 
-    draw.text((name_x, content_top + 20 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
+    from database import level_info, level_name, _calc_level, xp_for_level
+    li = level_info(xp)
+    lvl = li["level"]
+    lvl_name = level_name(lvl)
+    lvl_color, lvl_color2 = _level_color(lvl)
+
+    f_lvl = _font(18)
+    f_lvl_name = _font(10, bold=False)
+    draw.text((name_x, content_top), f"Ур. {lvl}", fill=lvl_color, font=f_lvl)
+    draw.text((name_x + 80 * SCALE, content_top + 4 * SCALE), lvl_name, fill=lvl_color2, font=f_lvl_name)
+
+    bar_x = name_x
+    bar_y = content_top + 24 * SCALE
+    bar_w = W - 256 * SCALE
+    bar_h = 10 * SCALE
+    draw.rounded_rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + bar_h], radius=5 * SCALE, fill=(30, 24, 55))
+    if li["progress"] > 0:
+        fw = max(bar_h, int(bar_w * min(li["progress"], 1.0)))
+        _gradient_h(img, (bar_x, bar_y, bar_x + fw, bar_y + bar_h), lvl_color, lvl_color2)
+        draw = ImageDraw.Draw(img)
+        draw.rounded_rectangle([bar_x, bar_y, bar_x + fw, bar_y + bar_h], radius=5 * SCALE, fill=lvl_color)
+
+    f_xp = _font(8, bold=False)
+    xp_text = f"{li['xp']} / {li['next_level_xp']} XP"
+    draw.text((bar_x + bar_w + 8 * SCALE, bar_y - 1 * SCALE), xp_text, fill=GRAY, font=f_xp)
+
+    draw.text((name_x, content_top + 44 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
 
     _decorative_dots(draw, W // 2, content_top + 55 * SCALE, 7, 10, (50, 35, 100))
 

@@ -220,22 +220,30 @@ async def mines_reveal(callback: CallbackQuery):
         await callback.answer("Клетка уже открыта.")
         return
     if idx in game.mine_positions:
-        lose_game(user_id)
+        result = lose_game(user_id)
         await callback.answer("💥 Бум!")
-        await callback.message.edit_text(lose_text(game), reply_markup=None)
+        level_msg = ""
+        if result and result[1]:
+            lu = result[1]
+            level_msg = f"\n\n🎉 <b>Уровень {lu['new_level']} — {lu['level_name']}!</b>"
+        await callback.message.edit_text(lose_text(game) + level_msg, reply_markup=None)
         return
     game.revealed.add(idx)
     if game.safe_revealed == game.safe_total:
         result = cashout_game(user_id)
         if result:
-            game, payout = result
+            game, payout, level_up = result
+            level_msg = ""
+            if level_up:
+                level_msg = f"\n\n🎉 <b>Уровень {level_up['new_level']} — {level_up['level_name']}!</b>"
             await callback.answer()
             await callback.message.edit_reply_markup(reply_markup=None)
             await callback.message.answer(
                 f"🎉 <b>Всё поле безопасно!</b>\n"
                 f"💰 Выигрыш: <b>{format_number(payout)}</b> "
                 f"(+{format_number(payout - game.bet)})\n"
-                f"Множитель: {game.multiplier}x",
+                f"Множитель: {game.multiplier}x"
+                f"{level_msg}",
             )
         return
     await callback.answer(f"Множитель: {game.multiplier}x")
@@ -248,13 +256,17 @@ async def mines_cashout(callback: CallbackQuery):
     if not result:
         await callback.answer("Игра не найдена. Начните новую.", show_alert=True)
         return
-    game, payout = result
+    game, payout, level_up = result
+    level_msg = ""
+    if level_up:
+        level_msg = f"\n\n🎉 <b>Уровень {level_up['new_level']} — {level_up['level_name']}!</b>"
     await callback.answer()
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.message.answer(
         f"💰 <b>Выигрыш: {format_number(payout)}</b> "
         f"(+{format_number(payout - game.bet)})\n"
-        f"Множитель: {game.multiplier}x",
+        f"Множитель: {game.multiplier}x"
+        f"{level_msg}",
     )
 
 

@@ -108,6 +108,7 @@ async def _make_card(user, stats, ref_count, from_user):
         avatar_bytes=avatar,
         frame=user.get("active_frame"),
         title=user.get("active_title"),
+        xp=user.get("xp", 0) or 0,
     )
     return ("profile.png", card_buf.getvalue())
 

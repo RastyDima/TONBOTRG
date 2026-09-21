@@ -17,6 +17,50 @@ def current_week() -> str:
     return f"{iso[0]}-W{iso[1]:02d}"
 
 
+def _calc_level(xp: int) -> int:
+    """Уровень по XP: level = floor(sqrt(xp / 50))."""
+    import math
+    return int(math.sqrt(xp / 50)) + 1 if xp >= 0 else 1
+
+
+def xp_for_level(level: int) -> int:
+    """Минимальный XP для достижения уровня."""
+    return ((level - 1) ** 2) * 50
+
+
+def level_info(xp: int) -> dict:
+    """Возвращает полную информацию об уровне."""
+    level = _calc_level(xp)
+    current_level_xp = xp_for_level(level)
+    next_level_xp = xp_for_level(level + 1)
+    progress = (xp - current_level_xp) / max(1, next_level_xp - current_level_xp)
+    return {
+        "level": level,
+        "xp": xp,
+        "current_level_xp": current_level_xp,
+        "next_level_xp": next_level_xp,
+        "progress": min(progress, 1.0),
+    }
+
+
+LEVEL_NAMES = {
+    1: "Новичок",
+    5: "Игрок",
+    10: "Боец",
+    15: "Мастер",
+    20: "Легенда",
+    30: "Бог",
+}
+
+
+def level_name(level: int) -> str:
+    name = "Новичок"
+    for threshold, n in sorted(LEVEL_NAMES.items()):
+        if level >= threshold:
+            name = n
+    return name
+
+
 class Database:
     """Слой работы с SQLite (локальная разработка без Postgres)."""
 
@@ -122,6 +166,8 @@ class Database:
                 conn.execute("ALTER TABLE users ADD COLUMN active_frame TEXT")
             if "active_title" not in cols:
                 conn.execute("ALTER TABLE users ADD COLUMN active_title TEXT")
+            if "xp" not in cols:
+                conn.execute("ALTER TABLE users ADD COLUMN xp INTEGER NOT NULL DEFAULT 0")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS user_purchases (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -424,6 +470,14 @@ class Database:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def top_xp(self, limit: int = 10) -> list[dict]:
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT id, username, first_name, balance, xp FROM users ORDER BY xp DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
     # ---------- Админ ----------
 
     def admin_overview(self) -> dict:
@@ -557,7 +611,7 @@ class Database:
         """Полный сброс: всем баланс на стартовый, обнуление статистики и истории."""
         with closing(self._connect()) as conn, conn:
             conn.execute(
-                "UPDATE users SET balance = ?, max_balance = ?, "
+                "UPDATE users SET balance = ?, max_balance = ?, xp = 0, "
                 "last_daily = NULL, last_weekly = NULL, "
                 "daily_notified = 0, weekly_notified = 0",
                 (STARTING_BALANCE, STARTING_BALANCE),
@@ -612,6 +666,23 @@ class Database:
                 (user_id,),
             ).fetchall()
             return [dict(r) for r in rows]
+
+    # ---------- XP / Уровни ----------
+
+    def add_xp(self, user_id: int, amount: int) -> int:
+        """Добавляет XP, возвращает новый уровень."""
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "UPDATE users SET xp = xp + ? WHERE id = ?",
+                (amount, user_id),
+            )
+            row = conn.execute("SELECT xp FROM users WHERE id = ?", (user_id,)).fetchone()
+            return _calc_level(row["xp"]) if row else 1
+
+    def get_xp(self, user_id: int) -> int:
+        with closing(self._connect()) as conn:
+            row = conn.execute("SELECT xp FROM users WHERE id = ?", (user_id,)).fetchone()
+            return row["xp"] if row else 0
 
 
 class PostgresDatabase:
@@ -740,6 +811,9 @@ class PostgresDatabase:
             )
             cur.execute(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS active_title TEXT"
+            )
+            cur.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS xp BIGINT NOT NULL DEFAULT 0"
             )
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS user_purchases (
@@ -1038,6 +1112,14 @@ class PostgresDatabase:
             )
             return [dict(r) for r in cur.fetchall()]
 
+    def top_xp(self, limit: int = 10) -> list[dict]:
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT id, username, first_name, balance, xp FROM users ORDER BY xp DESC LIMIT %s",
+                (limit,),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
     # ---------- Админ ----------
 
     def admin_overview(self) -> dict:
@@ -1168,7 +1250,7 @@ class PostgresDatabase:
         """Полный сброс: всем баланс на стартовый, обнуление статистики и истории."""
         with self._cursor() as cur:
             cur.execute(
-                "UPDATE users SET balance = %s, max_balance = %s, "
+                "UPDATE users SET balance = %s, max_balance = %s, xp = 0, "
                 "last_daily = NULL, last_weekly = NULL, "
                 "daily_notified = 0, weekly_notified = 0",
                 (STARTING_BALANCE, STARTING_BALANCE),
@@ -1225,6 +1307,25 @@ class PostgresDatabase:
                 (user_id,),
             )
             return [dict(r) for r in cur.fetchall()]
+
+    # ---------- XP / Уровни ----------
+
+    def add_xp(self, user_id: int, amount: int) -> int:
+        """Добавляет XP, возвращает новый уровень."""
+        with self._cursor() as cur:
+            cur.execute(
+                "UPDATE users SET xp = xp + %s WHERE id = %s",
+                (amount, user_id),
+            )
+            cur.execute("SELECT xp FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            return _calc_level(row["xp"]) if row else 1
+
+    def get_xp(self, user_id: int) -> int:
+        with self._cursor() as cur:
+            cur.execute("SELECT xp FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            return row["xp"] if row else 0
 
 
 db = PostgresDatabase() if DATABASE_URL else Database()

@@ -15,7 +15,8 @@ def rating_kb():
     kb = InlineKeyboardBuilder()
     kb.button(text="💰 По максимуму", callback_data="rating_balance")
     kb.button(text="🎯 По победам", callback_data="rating_wins")
-    kb.adjust(2)
+    kb.button(text="📊 По опыту", callback_data="rating_xp")
+    kb.adjust(3)
     kb.row(back_button("menu"))
     return kb.as_markup()
 
@@ -34,13 +35,16 @@ async def rating_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(rating_text(top, "balance"), reply_markup=rating_kb())
 
 
-@router.callback_query(F.data.in_({"rating_balance", "rating_wins"}), StateFilter("*"))
+@router.callback_query(F.data.in_({"rating_balance", "rating_wins", "rating_xp"}), StateFilter("*"))
 async def rating_switch(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.answer()
     if callback.data == "rating_balance":
         top = db.top_max_balance(10)
         mode = "balance"
+    elif callback.data == "rating_xp":
+        top = db.top_xp(10)
+        mode = "xp"
     else:
         top = db.top_wins(10)
         mode = "wins"

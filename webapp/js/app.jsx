@@ -33,14 +33,18 @@ function formatNumber(n) {
     return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
 
-function calcLevel(totalGames, wins, totalBet) {
-    if (totalGames < 10) return { name: 'NEWBIE', color: '#8c82af', filled: 0 };
-    const winrate = totalGames > 0 ? wins / totalGames : 0;
-    const score = winrate * 100 + Math.log10(totalBet + 1) * 10;
-    if (score > 120) return { name: 'DIAMOND', color: '#b4e6ff', filled: 3 };
-    if (score > 90) return { name: 'GOLD', color: '#ffd23c', filled: 3 };
-    if (score > 60) return { name: 'SILVER', color: '#c0c0c0', filled: 2 };
-    return { name: 'BRONZE', color: '#cd7f32', filled: 1 };
+function calcLevel(xp) {
+    const level = Math.floor(Math.sqrt(xp / 50)) + 1;
+    const currentXp = ((level - 1) ** 2) * 50;
+    const nextXp = (level ** 2) * 50;
+    const progress = Math.min((xp - currentXp) / Math.max(1, nextXp - currentXp), 1);
+    let name = 'Новичок', color = '#b4a0d0';
+    if (level >= 30) { name = 'Бог'; color = '#ff5050'; }
+    else if (level >= 20) { name = 'Легенда'; color = '#ffb432'; }
+    else if (level >= 15) { name = 'Мастер'; color = '#b478ff'; }
+    else if (level >= 10) { name = 'Боец'; color = '#50c8ff'; }
+    else if (level >= 5) { name = 'Игрок'; color = '#3cdc82'; }
+    return { level, name, color, progress, xp, currentXp, nextXp };
 }
 
 // --- Components ---
@@ -117,7 +121,7 @@ function NavBar({ page, onNavigate }) {
 
 function ProfilePage({ profile }) {
     if (!profile) return <Loading />;
-    const level = calcLevel(profile.total_games, profile.wins, profile.total_bet);
+    const level = calcLevel(profile.xp || 0);
     const winrate = profile.total_games > 0
         ? ((profile.wins / profile.total_games) * 100).toFixed(1)
         : '0.0';
@@ -153,7 +157,28 @@ function ProfilePage({ profile }) {
                             {titleNames[profile.active_title] || profile.active_title}
                         </div>
                     )}
-                    <Stars filled={level.filled} color={level.color} />
+                    <div style={{ marginTop: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ color: level.color, fontWeight: 'bold', fontSize: '16px' }}>
+                                Ур. {level.level}
+                            </span>
+                            <span style={{ color: level.color, fontSize: '12px', opacity: 0.8 }}>
+                                {level.name}
+                            </span>
+                        </div>
+                        <div style={{ marginTop: '6px', background: '#1e1837', borderRadius: '6px', height: '8px', overflow: 'hidden' }}>
+                            <div style={{
+                                width: `${Math.round(level.progress * 100)}%`,
+                                height: '100%',
+                                background: `linear-gradient(90deg, ${level.color}, ${level.color}88)`,
+                                borderRadius: '6px',
+                                transition: 'width 0.3s',
+                            }} />
+                        </div>
+                        <div style={{ color: '#8c82af', fontSize: '10px', marginTop: '4px' }}>
+                            {level.xp} / {level.nextXp} XP
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -453,6 +478,7 @@ function LeaderboardPage({ profile }) {
     const tabs = [
         { id: 'balance', label: '💰 Баланс' },
         { id: 'wins', label: '🏆 Победы' },
+        { id: 'xp', label: '📊 Опыт' },
     ];
 
     return (
@@ -518,6 +544,11 @@ function LeaderboardPage({ profile }) {
                                         <>
                                             <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--gold)' }}>{formatNumber(p.max_balance)}</div>
                                             <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>TON</div>
+                                        </>
+                                    ) : tab === 'xp' ? (
+                                        <>
+                                            <div style={{ fontSize: '15px', fontWeight: 700, color: '#b478ff' }}>{formatNumber(p.xp || 0)}</div>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>XP</div>
                                         </>
                                     ) : (
                                         <>

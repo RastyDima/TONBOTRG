@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from database import db
+from database import db, level_info, level_name, _calc_level
 from keyboards.common import back_button
 from utils.helpers import (
     balance_text,
@@ -51,14 +51,27 @@ async def daily_command(message: Message):
         )
 
 
+XP_DAILY = 15
+XP_WEEKLY = 50
+
+
 @router.callback_query(F.data == "daily", StateFilter("*"))
 async def daily_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.answer()
     ok = db.claim_daily(callback.from_user.id, get_daily_bonus())
     if ok:
+        old_level = _calc_level(db.get_xp(callback.from_user.id))
+        db.add_xp(callback.from_user.id, XP_DAILY)
+        new_level = _calc_level(db.get_xp(callback.from_user.id))
+        level_msg = ""
+        if new_level > old_level:
+            li = level_info(db.get_xp(callback.from_user.id))
+            level_msg = f"\n\n🎉 <b>Уровень {li['level']} — {level_name(li['level'])}!</b>"
         await callback.message.edit_text(
-            f"🎁 <b>Ежедневный бонус</b>\n\nВы получили {format_number(get_daily_bonus())} TON!",
+            f"🎁 <b>Ежедневный бонус</b>\n\n"
+            f"Вы получили {format_number(get_daily_bonus())} TON!"
+            f"{level_msg}",
             reply_markup=back_kb(),
         )
     else:
@@ -88,8 +101,17 @@ async def weekly_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     ok = db.claim_weekly(callback.from_user.id, get_weekly_bonus())
     if ok:
+        old_level = _calc_level(db.get_xp(callback.from_user.id))
+        db.add_xp(callback.from_user.id, XP_WEEKLY)
+        new_level = _calc_level(db.get_xp(callback.from_user.id))
+        level_msg = ""
+        if new_level > old_level:
+            li = level_info(db.get_xp(callback.from_user.id))
+            level_msg = f"\n\n🎉 <b>Уровень {li['level']} — {level_name(li['level'])}!</b>"
         await callback.message.edit_text(
-            f"🗓 <b>Еженедельный бонус</b>\n\nВы получили {format_number(get_weekly_bonus())} TON!",
+            f"🗓 <b>Еженедельный бонус</b>\n\n"
+            f"Вы получили {format_number(get_weekly_bonus())} TON!"
+            f"{level_msg}",
             reply_markup=back_kb(),
         )
     else:

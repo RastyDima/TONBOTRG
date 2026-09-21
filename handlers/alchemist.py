@@ -263,15 +263,22 @@ async def finish_mix(callback: CallbackQuery, game) -> None:
         pass
 
     game.resolve()
+    level_msg = ""
     if game.multiplier <= 0:
-        lose_game(game.user_id)
+        result = lose_game(game.user_id)
         final_text = lose_text(game)
+        if result and result[1]:
+            lu = result[1]
+            level_msg = f"\n\n🎉 <b>Уровень {lu['new_level']} — {lu['level_name']}!</b>"
     else:
-        cashout_game(game.user_id)
+        result = cashout_game(game.user_id)
         final_text = win_text(game)
+        if result and result[2]:
+            lu = result[2]
+            level_msg = f"\n\n🎉 <b>Уровень {lu['new_level']} — {lu['level_name']}!</b>"
 
     try:
-        await callback.message.edit_text(final_text)
+        await callback.message.edit_text(final_text + level_msg)
     except Exception:
         try:
             await callback.bot.send_message(callback.message.chat.id, final_text)

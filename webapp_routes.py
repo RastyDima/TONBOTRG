@@ -97,6 +97,7 @@ def register_webapp_routes(app: web.Application) -> None:
             "first_name": user.get("first_name", ""),
             "balance": user.get("balance", 0),
             "rubies": user.get("rubies", 0),
+            "xp": user.get("xp", 0),
             "active_frame": user.get("active_frame"),
             "active_title": user.get("active_title"),
             "total_games": stats.get("total_games", 0) if stats else 0,
@@ -217,6 +218,8 @@ def register_webapp_routes(app: web.Application) -> None:
 
         if mode == "wins":
             top = db.top_wins(limit)
+        elif mode == "xp":
+            top = db.top_xp(limit)
         elif mode == "games":
             top = db.top_balance(limit)
         else:
@@ -241,6 +244,8 @@ def register_webapp_routes(app: web.Application) -> None:
         if user:
             if mode == "wins":
                 all_top = db.top_wins(1000)
+            elif mode == "xp":
+                all_top = db.top_xp(1000)
             elif mode == "games":
                 all_top = db.top_balance(1000)
             else:

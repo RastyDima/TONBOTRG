@@ -1,4 +1,4 @@
-from database import db
+from database import db, level_info, level_name, _calc_level
 
 GAME_LABELS = {"mines": "Мины", "joker": "Джокер", "alchemist": "Алхимик", "ruby_roulette": "Рубиновая рулетка", "coinflip": "Монетка"}
 
@@ -64,6 +64,21 @@ def _process_referral_bet(user_id: int, bet: int) -> None:
         pass
 
 
+GAME_XP_PLAY = 5
+GAME_XP_WIN = 10
+
+
+def _check_level_up(user_id: int, old_level: int, new_level: int) -> dict | None:
+    """Проверяет повышение уровня. Возвращает info dict или None."""
+    if new_level <= old_level:
+        return None
+    info = level_info(db.get_xp(user_id))
+    info["old_level"] = old_level
+    info["new_level"] = new_level
+    info["level_name"] = level_name(new_level)
+    return info
+
+
 def cashout_game(user_id: int):
     """Забирает выигрыш: начисляет payout, фиксирует победу в БД и статистике."""
     entry = registry.get(user_id)
@@ -83,7 +98,11 @@ def cashout_game(user_id: int):
     registry.release(user_id)
     db.add_game(user_id, entry["type"], game.bet, payout, "win")
     db.update_stats(user_id, "win", game.bet, payout)
-    return game, payout
+    old_level = _calc_level(db.get_xp(user_id))
+    db.add_xp(user_id, GAME_XP_PLAY + GAME_XP_WIN)
+    new_level = _calc_level(db.get_xp(user_id))
+    level_up = _check_level_up(user_id, old_level, new_level)
+    return game, payout, level_up
 
 
 def lose_game(user_id: int):
@@ -99,7 +118,11 @@ def lose_game(user_id: int):
     registry.release(user_id)
     db.add_game(user_id, entry["type"], game.bet, 0, "lose")
     db.update_stats(user_id, "lose", game.bet, 0)
-    return game
+    old_level = _calc_level(db.get_xp(user_id))
+    db.add_xp(user_id, GAME_XP_PLAY)
+    new_level = _calc_level(db.get_xp(user_id))
+    level_up = _check_level_up(user_id, old_level, new_level)
+    return game, level_up
 
 
 def cancel_game(user_id: int):

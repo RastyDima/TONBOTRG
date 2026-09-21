@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from config import ADMIN_IDS, STARTING_BALANCE
-from database import db
+from database import db, _calc_level, level_info, level_name
 from keyboards.main_menu import main_menu
 from utils.game_registry import cancel_game, clear_pending_bet, registry
 from utils.helpers import format_number, menu_text
@@ -29,6 +29,9 @@ async def cmd_start(message: Message):
         db.register_user(user.id, (user.username or "").lower() or None, user.first_name)
     else:
         db.register_user(user.id, (user.username or "").lower() or None, user.first_name, referrer_id)
+        db.add_xp(user.id, 10)
+        if referrer_id and referrer_id != user.id:
+            db.add_xp(referrer_id, 100)
     name = html.escape(user.first_name or "игрок")
     if existing:
         text = f"👋 С возвращением, {name}!\nВыберите действие в меню:"
@@ -64,6 +67,7 @@ async def cmd_help(message: Message):
         "💸 <b>Перевод:</b> ответьте на сообщение игрока <code>п 12000</code>\n"
         "💰 <b>Баланс:</b> <code>б</code>\n"
         "👤 /profile — профиль и статистика\n"
+        "📊 /level — ваш уровень и прогресс\n"
         "🎁 /daily — ежедневный бонус\n"
         "🗓 /weekly — еженедельный бонус\n"
         "🎟 Промокод: введите <code>#КОД</code> в чате\n"
@@ -110,3 +114,24 @@ async def cancel_command(message: Message, state: FSMContext):
         await message.answer("❌ Игра отменена. Ставка возвращена на баланс.")
     else:
         await message.answer("❌ Отменено.")
+
+
+@router.message(Command("level"))
+async def level_command(message: Message):
+    user = db.get_user(message.from_user.id)
+    if not user:
+        await message.answer("Сначала нажмите /start")
+        return
+    xp = user.get("xp", 0) or 0
+    li = level_info(xp)
+    name = level_name(li["level"])
+    bar_len = 20
+    filled = int(li["progress"] * bar_len)
+    bar = "█" * filled + "░" * (bar_len - filled)
+    await message.answer(
+        f"📊 <b>Уровень</b>\n\n"
+        f"Уровень: <b>{li['level']}</b> — {name}\n"
+        f"XP: <b>{li['xp']}</b> / {li['next_level_xp']}\n"
+        f"<code>{bar}</code> {int(li['progress'] * 100)}%\n\n"
+        f"До следующего уровня: <b>{li['next_level_xp'] - li['xp']}</b> XP"
+    )

@@ -146,6 +146,8 @@ def history_text(transactions: list) -> str:
 def rating_text(top: list, mode: str = "balance") -> str:
     if mode == "balance":
         title = "💰 Максимальный баланс"
+    elif mode == "xp":
+        title = "📊 По опыту"
     else:
         title = "🎯 По победам"
     lines = [f"🏆 <b>Рейтинг</b> — {title}\n"]
@@ -153,7 +155,12 @@ def rating_text(top: list, mode: str = "balance") -> str:
     for i, u in enumerate(top, 1):
         name = html.escape(str(u["first_name"] or u["username"] or f"Игрок {u['id']}"))
         medal = medals[i - 1] if i <= 3 else f"{i}."
-        stat = f"{format_number(u['max_balance'])} 💰" if mode == "balance" else f"{u['wins']} 🏆"
+        if mode == "balance":
+            stat = f"{format_number(u['max_balance'])} 💰"
+        elif mode == "xp":
+            stat = f"{format_number(u.get('xp', 0))} 📊"
+        else:
+            stat = f"{u['wins']} 🏆"
         lines.append(f"{medal} {name} — {stat}")
     if not top:
         lines.append("Пока нет данных.")
