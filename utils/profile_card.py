@@ -329,7 +329,7 @@ def generate_profile_card(
 
     bar_x = name_x
     bar_y = content_top + 24 * SCALE
-    bar_w = W - 256 * SCALE
+    bar_w = W - 280 * SCALE
     bar_h = 10 * SCALE
     draw.rounded_rectangle([bar_x, bar_y, bar_x + bar_w, bar_y + bar_h], radius=5 * SCALE, fill=(30, 24, 55))
     if li["progress"] > 0:
@@ -340,9 +340,9 @@ def generate_profile_card(
 
     f_xp = _font(8, bold=False)
     xp_text = f"{li['xp']} / {li['next_level_xp']} XP"
-    draw.text((bar_x + bar_w + 8 * SCALE, bar_y - 1 * SCALE), xp_text, fill=GRAY, font=f_xp)
+    draw.text((bar_x, bar_y + bar_h + 3 * SCALE), xp_text, fill=GRAY, font=f_xp)
 
-    draw.text((name_x, content_top + 44 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
+    draw.text((name_x, content_top + 50 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
 
     _decorative_dots(draw, W // 2, content_top + 55 * SCALE, 7, 10, (50, 35, 100))
 
