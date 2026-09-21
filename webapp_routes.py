@@ -19,11 +19,24 @@ def _json_response(data, status=200):
     return web.json_response(data, status=status)
 
 
-def _get_user_from_request(request):
-    user_id = request.get("webapp_user_id")
-    if not user_id:
+async def _auth_user(request):
+    """Extract and validate user from Bearer token. Returns user dict or None."""
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    if not token:
+        token = request.query.get("token", "")
+    if not token:
         return None
-    return db.get_user(user_id)
+    try:
+        payload = json.loads(token)
+        user_id = payload.get("user_id")
+        if not user_id:
+            return None
+        user = db.get_user(user_id)
+        if not user or user.get("is_blocked"):
+            return None
+        return user
+    except (json.JSONDecodeError, TypeError):
+        return None
 
 
 def register_webapp_routes(app: web.Application) -> None:
@@ -44,42 +57,7 @@ def register_webapp_routes(app: web.Application) -> None:
     app.router.add_get(f"{WEBAPP_API_PREFIX}/", serve_index)
     app.router.add_get(f"{WEBAPP_API_PREFIX}", serve_index)
 
-    # --- Auth middleware ---
-    @web.middleware
-    async def auth_middleware(request, handler):
-        # Only intercept /app/api/* requests
-        if not request.path.startswith(f"{WEBAPP_API_PREFIX}/api/"):
-            return await handler(request)
-        # Skip auth for the auth endpoint itself
-        if request.path == f"{WEBAPP_API_PREFIX}/api/auth":
-            return await handler(request)
-
-        token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-        if not token:
-            token = request.query.get("token", "")
-        if not token:
-            return _json_response({"error": "unauthorized"}, 401)
-
-        try:
-            payload = json.loads(token)
-            user_id = payload.get("user_id")
-            if not user_id:
-                return _json_response({"error": "invalid token"}, 401)
-            # Verify user exists
-            user = db.get_user(user_id)
-            if not user:
-                return _json_response({"error": "user not found"}, 401)
-            if user.get("is_blocked"):
-                return _json_response({"error": "blocked"}, 403)
-            request["webapp_user_id"] = user_id
-        except (json.JSONDecodeError, TypeError):
-            return _json_response({"error": "invalid token"}, 401)
-
-        return await handler(request)
-
-    app.middlewares.append(auth_middleware)
-
-    # --- API Routes ---
+    # --- Auth ---
 
     async def api_auth(request):
         try:
@@ -105,10 +83,12 @@ def register_webapp_routes(app: web.Application) -> None:
         token = json.dumps({"user_id": user_id})
         return _json_response({"token": token, "user_id": user_id})
 
+    # --- Profile ---
+
     async def api_profile(request):
-        user = _get_user_from_request(request)
+        user = await _auth_user(request)
         if not user:
-            return _json_response({"error": "not found"}, 404)
+            return _json_response({"error": "unauthorized"}, 401)
 
         stats = db.get_stats(user["id"])
         return _json_response({
@@ -127,8 +107,10 @@ def register_webapp_routes(app: web.Application) -> None:
             "referral_count": user.get("referral_count", 0),
         })
 
+    # --- Shop ---
+
     async def api_shop(request):
-        user = _get_user_from_request(request)
+        user = await _auth_user(request)
         user_id = user["id"] if user else 0
 
         frames = []
@@ -169,9 +151,9 @@ def register_webapp_routes(app: web.Application) -> None:
         })
 
     async def api_shop_buy(request):
-        user = _get_user_from_request(request)
+        user = await _auth_user(request)
         if not user:
-            return _json_response({"error": "not found"}, 404)
+            return _json_response({"error": "unauthorized"}, 401)
 
         try:
             body = await request.json()
@@ -201,9 +183,9 @@ def register_webapp_routes(app: web.Application) -> None:
         })
 
     async def api_shop_equip(request):
-        user = _get_user_from_request(request)
+        user = await _auth_user(request)
         if not user:
-            return _json_response({"error": "not found"}, 404)
+            return _json_response({"error": "unauthorized"}, 401)
 
         try:
             body = await request.json()
@@ -216,7 +198,6 @@ def register_webapp_routes(app: web.Application) -> None:
         elif item_id.startswith("title"):
             db.set_active_title(user["id"], item_id)
         elif item_id == "":
-            # Unequip
             category = body.get("category", "")
             if category == "frame":
                 db.set_active_frame(user["id"], None)
@@ -227,15 +208,10 @@ def register_webapp_routes(app: web.Application) -> None:
 
         return _json_response({"ok": True})
 
-    # Register API routes
-    app.router.add_post(f"{WEBAPP_API_PREFIX}/api/auth", api_auth)
-    app.router.add_get(f"{WEBAPP_API_PREFIX}/api/profile", api_profile)
-    app.router.add_get(f"{WEBAPP_API_PREFIX}/api/shop", api_shop)
-    app.router.add_post(f"{WEBAPP_API_PREFIX}/api/shop/buy", api_shop_buy)
-    app.router.add_post(f"{WEBAPP_API_PREFIX}/api/shop/equip", api_shop_equip)
+    # --- Leaderboard ---
 
     async def api_leaderboard(request):
-        user = _get_user_from_request(request)
+        user = await _auth_user(request)
         mode = request.query.get("mode", "balance")
         limit = min(int(request.query.get("limit", 20)), 50)
 
@@ -280,4 +256,10 @@ def register_webapp_routes(app: web.Application) -> None:
             "my_rank": my_rank,
         })
 
+    # Register API routes
+    app.router.add_post(f"{WEBAPP_API_PREFIX}/api/auth", api_auth)
+    app.router.add_get(f"{WEBAPP_API_PREFIX}/api/profile", api_profile)
+    app.router.add_get(f"{WEBAPP_API_PREFIX}/api/shop", api_shop)
+    app.router.add_post(f"{WEBAPP_API_PREFIX}/api/shop/buy", api_shop_buy)
+    app.router.add_post(f"{WEBAPP_API_PREFIX}/api/shop/equip", api_shop_equip)
     app.router.add_get(f"{WEBAPP_API_PREFIX}/api/leaderboard", api_leaderboard)
