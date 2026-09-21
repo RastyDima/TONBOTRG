@@ -344,7 +344,7 @@ def generate_profile_card(
 
     draw.text((name_x, content_top + 50 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
 
-    _decorative_dots(draw, W // 2, content_top + 55 * SCALE, 7, 10, (50, 35, 100))
+    _decorative_dots(draw, W // 2, content_top + 65 * SCALE, 7, 10, (50, 35, 100))
 
     sy = content_top + 80 * SCALE
     sec_h = 110 * SCALE
