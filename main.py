@@ -8,7 +8,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import CallbackQuery, Message, Update
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 from config import BOT_TOKEN, PORT, PUBLIC_BASE_URL, WEBHOOK_PATH, WEBHOOK_SECRET, WEBHOOK_URL
 from database import db
@@ -20,7 +20,7 @@ from webapp_routes import register_webapp_routes
 
 logging.basicConfig(level=logging.INFO)
 
-APP_VERSION = "c4f8e2a+full-debug"
+APP_VERSION = "5e3f1a1+setup-fix"
 logging.info("Starting TONBOTRG build %s (WEBHOOK=%s, backend=%s)", APP_VERSION, bool(WEBHOOK_URL), type(db).__name__)
 
 REMINDER_INTERVAL = 30 * 60  # секунд
@@ -104,11 +104,17 @@ async def webhook_guard_loop(bot: Bot) -> None:
             current = info.url
             if current and current != expected_url:
                 logging.critical("WEBHOOK HIJACKED! Current=%s, expected=%s — restoring!", current, expected_url)
-                await bot.set_webhook(expected_url, secret_token=WEBHOOK_SECRET, drop_pending_updates=True)
+                await bot.set_webhook(
+                    expected_url, secret_token=WEBHOOK_SECRET, drop_pending_updates=True,
+                    allowed_updates=["message", "callback_query", "inline_query"],
+                )
                 logging.critical("Webhook restored to %s", expected_url)
             elif not current:
                 logging.warning("Webhook empty — re-setting to %s", expected_url)
-                await bot.set_webhook(expected_url, secret_token=WEBHOOK_SECRET, drop_pending_updates=True)
+                await bot.set_webhook(
+                    expected_url, secret_token=WEBHOOK_SECRET, drop_pending_updates=True,
+                    allowed_updates=["message", "callback_query", "inline_query"],
+                )
         except Exception:
             logging.exception("webhook guard error")
 
@@ -146,51 +152,59 @@ def build_app() -> web.Application:
     dp.update.middleware(BlockedUserMiddleware())
     register_handlers(dp)
 
-    async def on_startup(*args, **kwargs) -> None:
-        # aiogram вызывает startup через emit_startup(**workflow_data), где нет `bot`;
-        # поэтому используем замыкание над локальным bot.
+    async def on_startup(app: web.Application) -> None:
         webhook_url = WEBHOOK_URL + WEBHOOK_PATH
-        await bot.set_webhook(webhook_url, secret_token=WEBHOOK_SECRET, drop_pending_updates=True)
-        logging.info("Webhook set to %s", webhook_url)
+        await bot.set_webhook(
+            webhook_url,
+            secret_token=WEBHOOK_SECRET,
+            drop_pending_updates=True,
+            allowed_updates=dp.resolve_used_update_types(),
+        )
+        info = await bot.get_webhook_info()
+        logging.info(
+            "Webhook set: url=%s pending=%s pending_count=%s last_error=%s last_error_date=%s allowed=%s",
+            info.url, info.has_custom_certificate, info.pending_update_count,
+            info.last_error_message, info.last_error_date,
+            info.allowed_updates,
+        )
 
-    async def on_shutdown(*args, **kwargs) -> None:
-        # НЕ удаляем webhook при остановке: при перекатке старый инстанс не должен
-        # сносить вебхук, который уже поставил новый (иначе апдейты перестанут ходить).
+    async def on_shutdown(app: web.Application) -> None:
         logging.info("Bot shutdown (webhook left intact)")
 
-    dp.startup.register(on_startup)
-    dp.shutdown.register(on_shutdown)
-
-    app = web.Application()
-    webhook_requests = SimpleRequestHandler(
-        dispatcher=dp,
-        bot=bot,
-        secret_token=WEBHOOK_SECRET,
-    )
-    webhook_requests.register(app, path=WEBHOOK_PATH)
-
-    async def health(request):
-        return web.Response(text="OK")
-
-    async def start_background(app) -> None:
+    async def start_background(app: web.Application) -> None:
         notify.set_bot(bot)
-        await dp.emit_startup()
         app["reminder_task"] = start_reminder_loop()
         app["heartbeat_task"] = start_heartbeat()
         app["webhook_guard_task"] = asyncio.create_task(webhook_guard_loop(bot))
 
-    async def stop_background(app) -> None:
+    async def stop_background(app: web.Application) -> None:
         for key in ("reminder_task", "heartbeat_task", "webhook_guard_task"):
             task = app.get(key)
             if task:
                 task.cancel()
         await dp.emit_shutdown()
 
+    app = web.Application()
     app.on_startup.append(start_background)
     app.on_cleanup.append(stop_background)
-    app.router.add_get("/health", health)
+    app.router.add_get("/health", lambda r: web.Response(text="OK"))
     register_admin_routes(app)
     register_webapp_routes(app)
+
+    webhook_handler = SimpleRequestHandler(
+        dispatcher=dp,
+        bot=bot,
+        secret_token=WEBHOOK_SECRET,
+    )
+    webhook_handler.register(app, path=WEBHOOK_PATH)
+
+    setup_application(
+        app,
+        dp,
+        on_startup=on_startup,
+        on_shutdown=on_shutdown,
+    )
+
     return app
 
 
