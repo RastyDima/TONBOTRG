@@ -1,8 +1,8 @@
-"""Генератор профиль-карточки в стиле TON Casino — v3."""
+"""Генератор профиль-карточки в стиле TON Casino — v3 + animated avatar support."""
 import io
 import math
 import os
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageSequence
 
 SCALE = 2
 W, H = 580 * SCALE, 780 * SCALE
@@ -218,30 +218,43 @@ def generate_profile_card(
     avatar_cx, avatar_cy = 130 * SCALE, 140 * SCALE
     avatar_r = 64 * SCALE
 
+    avatar_is_gif = False
+    avatar_frames = []
     avatar_drawn = False
     if avatar_bytes:
         try:
-            av = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
-            av = av.resize((avatar_r * 2, avatar_r * 2), Image.LANCZOS)
-            circle_mask = Image.new("L", av.size, 0)
-            ImageDraw.Draw(circle_mask).ellipse([0, 0, av.size[0], av.size[1]], fill=255)
-            avatar_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
-            avatar_layer.paste(av, (avatar_cx - avatar_r, avatar_cy - avatar_r), circle_mask)
-            img = Image.alpha_composite(img.convert("RGBA"), avatar_layer).convert("RGB")
-            draw = ImageDraw.Draw(img)
-            _circle_glow(img, avatar_cx, avatar_cy, avatar_r, GLOW, 20)
-            draw = ImageDraw.Draw(img)
-            draw.ellipse(
-                [avatar_cx - avatar_r - 3 * SCALE, avatar_cy - avatar_r - 3 * SCALE,
-                 avatar_cx + avatar_r + 3 * SCALE, avatar_cy + avatar_r + 3 * SCALE],
-                outline=PURPLE2, width=3 * SCALE,
-            )
-            draw.ellipse(
-                [avatar_cx - avatar_r - 1 * SCALE, avatar_cy - avatar_r - 1 * SCALE,
-                 avatar_cx + avatar_r + 1 * SCALE, avatar_cy + avatar_r + 1 * SCALE],
-                outline=(180, 140, 255), width=1 * SCALE,
-            )
-            avatar_drawn = True
+            av_raw = Image.open(io.BytesIO(avatar_bytes))
+            avatar_is_gif = getattr(av_raw, "is_animated", False)
+            if avatar_is_gif:
+                for frame in ImageSequence.Iterator(av_raw):
+                    fr = frame.copy().convert("RGBA").resize((avatar_r * 2, avatar_r * 2), Image.LANCZOS)
+                    avatar_frames.append(fr)
+            else:
+                av_raw = av_raw.convert("RGBA")
+                av_raw = av_raw.resize((avatar_r * 2, avatar_r * 2), Image.LANCZOS)
+                avatar_frames = [av_raw]
+
+            if avatar_frames:
+                av = avatar_frames[0]
+                circle_mask = Image.new("L", av.size, 0)
+                ImageDraw.Draw(circle_mask).ellipse([0, 0, av.size[0], av.size[1]], fill=255)
+                avatar_layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+                avatar_layer.paste(av, (avatar_cx - avatar_r, avatar_cy - avatar_r), circle_mask)
+                img = Image.alpha_composite(img.convert("RGBA"), avatar_layer).convert("RGB")
+                draw = ImageDraw.Draw(img)
+                _circle_glow(img, avatar_cx, avatar_cy, avatar_r, GLOW, 20)
+                draw = ImageDraw.Draw(img)
+                draw.ellipse(
+                    [avatar_cx - avatar_r - 3 * SCALE, avatar_cy - avatar_r - 3 * SCALE,
+                     avatar_cx + avatar_r + 3 * SCALE, avatar_cy + avatar_r + 3 * SCALE],
+                    outline=PURPLE2, width=3 * SCALE,
+                )
+                draw.ellipse(
+                    [avatar_cx - avatar_r - 1 * SCALE, avatar_cy - avatar_r - 1 * SCALE,
+                     avatar_cx + avatar_r + 1 * SCALE, avatar_cy + avatar_r + 1 * SCALE],
+                    outline=(180, 140, 255), width=1 * SCALE,
+                )
+                avatar_drawn = True
         except Exception:
             pass
 
@@ -450,6 +463,54 @@ def generate_profile_card(
         _dot(draw, sx, sy_s, sr, sc)
 
     buf = io.BytesIO()
-    img.save(buf, format="PNG", optimize=False)
+
+    if avatar_is_gif and len(avatar_frames) > 1:
+        NUM_ANIM_FRAMES = min(len(avatar_frames), 10)
+        frame_indices = [int(i * len(avatar_frames) / NUM_ANIM_FRAMES) for i in range(NUM_ANIM_FRAMES)]
+        gif_frames = []
+        circle_mask = Image.new("L", (avatar_r * 2, avatar_r * 2), 0)
+        ImageDraw.Draw(circle_mask).ellipse([0, 0, avatar_r * 2 - 1, avatar_r * 2 - 1], fill=255)
+
+        for fi in frame_indices:
+            frame_img = img.copy().convert("RGBA")
+            av_frame = avatar_frames[fi]
+            avatar_layer = Image.new("RGBA", frame_img.size, (0, 0, 0, 0))
+            avatar_layer.paste(av_frame, (avatar_cx - avatar_r, avatar_cy - avatar_r), circle_mask)
+            frame_img = Image.alpha_composite(frame_img, avatar_layer)
+
+            pulse_t = fi / NUM_ANIM_FRAMES
+            pulse = 0.5 + 0.5 * math.sin(2 * math.pi * pulse_t)
+            glow_r = int(avatar_r + 3 * SCALE + pulse * 8 * SCALE)
+            glow_alpha = int(30 + pulse * 40)
+            glow_layer = Image.new("RGBA", frame_img.size, (0, 0, 0, 0))
+            gd = ImageDraw.Draw(glow_layer)
+            for i in range(16, 0, -1):
+                a = int(glow_alpha * (1 - i / 16))
+                gd.ellipse(
+                    [avatar_cx - glow_r - i, avatar_cy - glow_r - i,
+                     avatar_cx + glow_r + i, avatar_cy + glow_r + i],
+                    fill=GLOW + (a,),
+                )
+            frame_img = Image.alpha_composite(frame_img, glow_layer)
+            fd = ImageDraw.Draw(frame_img)
+            fd.ellipse(
+                [avatar_cx - avatar_r - 3 * SCALE, avatar_cy - avatar_r - 3 * SCALE,
+                 avatar_cx + avatar_r + 3 * SCALE, avatar_cy + avatar_r + 3 * SCALE],
+                outline=PURPLE2, width=3 * SCALE,
+            )
+            fd.ellipse(
+                [avatar_cx - avatar_r - 1 * SCALE, avatar_cy - avatar_r - 1 * SCALE,
+                 avatar_cx + avatar_r + 1 * SCALE, avatar_cy + avatar_r + 1 * SCALE],
+                outline=(180, 140, 255), width=1 * SCALE,
+            )
+            gif_frames.append(frame_img.convert("RGB"))
+
+        gif_frames[0].save(
+            buf, format="GIF", save_all=True, append_images=gif_frames[1:],
+            duration=120, loop=0, optimize=False,
+        )
+    else:
+        img.save(buf, format="PNG", optimize=False)
+
     buf.seek(0)
     return buf

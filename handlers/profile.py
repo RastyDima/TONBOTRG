@@ -38,7 +38,10 @@ def balance_kb():
     return kb.as_markup()
 
 
-def _fetch_avatar_sync(user_id: int) -> bytes | None:
+def _fetch_avatar_sync(user_id: int) -> tuple[bytes | None, bool]:
+    """Возвращает (avatar_bytes, is_animated).
+    Для видео-аватаров скачивает сам видеофайл, а не статичный thumbnail.
+    """
     try:
         base = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
@@ -46,54 +49,50 @@ def _fetch_avatar_sync(user_id: int) -> bytes | None:
         req1 = urllib.request.Request(photos_url)
         with urllib.request.urlopen(req1, context=_SSL_CTX, timeout=10) as resp:
             data = json.loads(resp.read())
-        log.info("getUserProfilePhotos for %s: ok=%s", user_id, data.get("ok"))
         if not data.get("ok") or not data["result"]["photos"]:
-            return None
+            return None, False
 
         photo_entry = data["result"]["photos"][0]
         last = photo_entry[-1]
 
+        is_animated = False
         if "video" in last:
-            thumb = last["video"].get("thumb")
-            if not thumb:
-                photo_obj = last.get("photo")
-                if photo_obj:
-                    file_id = photo_obj["file_id"]
-                else:
-                    return None
-            else:
-                file_id = thumb["file_id"]
+            video = last["video"]
+            file_id = video["file_id"]
+            is_animated = True
+        elif "photo" in last:
+            file_id = last["photo"]["file_id"]
         else:
-            file_id = last["file_id"]
+            file_id = last.get("file_id")
+            if not file_id:
+                return None, False
 
         file_url = f"{base}/getFile?file_id={file_id}"
         req2 = urllib.request.Request(file_url)
         with urllib.request.urlopen(req2, context=_SSL_CTX, timeout=10) as resp2:
             data2 = json.loads(resp2.read())
-        log.info("getFile: ok=%s", data2.get("ok"))
         if not data2.get("ok"):
-            return None
+            return None, False
 
         file_path = data2["result"]["file_path"]
         dl_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
         req3 = urllib.request.Request(dl_url)
         with urllib.request.urlopen(req3, context=_SSL_CTX, timeout=10) as resp3:
             avatar = resp3.read()
-        log.info("avatar downloaded: %d bytes", len(avatar))
-        return avatar
+        return avatar, is_animated
     except Exception as e:
         log.warning("Sync avatar fetch failed for %s: %s", user_id, e)
-        return None
+        return None, False
 
 
-async def _get_avatar(user_id: int) -> bytes | None:
+async def _get_avatar(user_id: int) -> tuple[bytes | None, bool]:
     import asyncio
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, partial(_fetch_avatar_sync, user_id))
 
 
 async def _make_card(user, stats, ref_count, from_user):
-    avatar = await _get_avatar(user["id"])
+    avatar_bytes, is_animated = await _get_avatar(user["id"])
     card_buf = generate_profile_card(
         user_id=user["id"],
         name=user["first_name"] or "Игрок",
@@ -105,12 +104,14 @@ async def _make_card(user, stats, ref_count, from_user):
         total_bet=stats["total_bet"],
         total_won=stats["total_won"],
         ref_count=ref_count,
-        avatar_bytes=avatar,
+        avatar_bytes=avatar_bytes,
         frame=user.get("active_frame"),
         title=user.get("active_title"),
         xp=user.get("xp", 0) or 0,
     )
-    return ("profile.png", card_buf.getvalue())
+    is_gif = card_buf.getvalue()[:6] in (b"GIF87a", b"GIF89a")
+    ext = "gif" if is_gif else "png"
+    return (f"profile.{ext}", card_buf.getvalue())
 
 
 @router.message(Command("profile"))
