@@ -1,5 +1,4 @@
-from aiogram.types import InlineKeyboardButton
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
 def back_button(callback_data: str = "menu") -> InlineKeyboardButton:
@@ -11,6 +10,4 @@ def cancel_button() -> InlineKeyboardButton:
 
 
 def cancel_kb():
-    kb = InlineKeyboardBuilder()
-    kb.row(cancel_button())
-    return kb.as_markup()
+    return InlineKeyboardMarkup(inline_keyboard=[[cancel_button()]])

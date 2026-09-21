@@ -20,7 +20,7 @@ from webapp_routes import register_webapp_routes
 
 logging.basicConfig(level=logging.INFO)
 
-APP_VERSION = "9a2c4d1+callbacks-fix"
+APP_VERSION = "b3e7f9a+debug-kb"
 logging.info("Starting TONBOTRG build %s (WEBHOOK=%s, backend=%s)", APP_VERSION, bool(WEBHOOK_URL), type(db).__name__)
 
 REMINDER_INTERVAL = 30 * 60  # секунд
@@ -117,20 +117,38 @@ class BlockedUserMiddleware(BaseMiddleware):
     """Перехватывает все апдейты от заблокированных пользователей."""
 
     async def __call__(self, handler, event, data):
-        inner = event.event if isinstance(event, Update) else event
-        user = getattr(inner, "from_user", None)
-        if user is not None and db.is_user_blocked(user.id):
-            if isinstance(inner, Message):
-                await inner.answer("🚫 Вы заблокированы. Обратитесь к администратору.")
-            elif isinstance(inner, CallbackQuery):
-                await inner.answer("🚫 Вы заблокированы.", show_alert=True)
-            return
-        return await handler(event, data)
+        try:
+            inner = event.event if isinstance(event, Update) else event
+            user = getattr(inner, "from_user", None)
+            if user is not None and db.is_user_blocked(user.id):
+                if isinstance(inner, Message):
+                    await inner.answer("🚫 Вы заблокированы. Обратитесь к администратору.")
+                elif isinstance(inner, CallbackQuery):
+                    await inner.answer("🚫 Вы заблокированы.", show_alert=True)
+                return
+            return await handler(event, data)
+        except Exception:
+            logging.exception("BlockedUserMiddleware error")
+            return await handler(event, data)
 
 
 def build_app() -> web.Application:
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher(storage=MemoryStorage())
+
+    @dp.update.outer_middleware()
+    async def debug_update_logger(event, handler):
+        update = event.event if isinstance(event, Update) else event
+        update_type = "unknown"
+        if isinstance(update, CallbackQuery):
+            update_type = f"callback_query(data={update.data!r})"
+        elif isinstance(update, Message):
+            update_type = f"message(text={update.text!r})"
+        logging.info("UPDATE INCOMING: type=%s user=%s", update_type, getattr(update, "from_user", None))
+        result = await handler(event)
+        logging.info("UPDATE PROCESSED: type=%s", update_type)
+        return result
+
     dp.update.middleware(BlockedUserMiddleware())
     register_handlers(dp)
 
