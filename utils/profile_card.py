@@ -4,6 +4,8 @@ import math
 import os
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageSequence
 
+from utils.helpers import format_number
+
 SCALE = 2
 W, H = 580 * SCALE, 780 * SCALE
 
@@ -116,17 +118,6 @@ def _decorative_dots(draw, cx, y_start, count=5, spacing=8, color=(60, 50, 100))
     for i in range(count):
         dx = (i - count // 2) * spacing * SCALE
         _dot(draw, cx + dx, y_start, 2 * SCALE, color)
-
-
-def _calc_level(total_games, wins, total_bet):
-    score = total_games * 2 + wins * 5 + total_bet // 10000
-    if score >= 500:
-        return "DIAMOND", (100, 220, 255), (60, 180, 220), (80, 200, 240)
-    if score >= 200:
-        return "GOLD", (255, 210, 60), (200, 160, 30), (255, 220, 80)
-    if score >= 50:
-        return "SILVER", (200, 200, 220), (140, 140, 160), (220, 220, 240)
-    return "BRONZE", (200, 140, 80), (150, 100, 50), (220, 160, 100)
 
 
 def _level_color(level: int):
@@ -329,7 +320,7 @@ def generate_profile_card(
 
     content_top = banner_y1 + 16 * SCALE if title_wrapped else 130 * SCALE
 
-    from database import level_info, level_name, _calc_level, xp_for_level
+    from database import level_info, level_name
     li = level_info(xp)
     lvl = li["level"]
     lvl_name = level_name(lvl)
@@ -349,17 +340,20 @@ def generate_profile_card(
         fw = max(bar_h, int(bar_w * min(li["progress"], 1.0)))
         _gradient_h(img, (bar_x, bar_y, bar_x + fw, bar_y + bar_h), lvl_color, lvl_color2)
         draw = ImageDraw.Draw(img)
-        draw.rounded_rectangle([bar_x, bar_y, bar_x + fw, bar_y + bar_h], radius=5 * SCALE, fill=lvl_color)
+        draw.rounded_rectangle([bar_x, bar_y, bar_x + fw, bar_y + bar_h], radius=5 * SCALE, outline=lvl_color, width=1)
 
+    xp_bottom = bar_y + bar_h + 3 * SCALE
     f_xp = _font(8, bold=False)
     xp_text = f"{li['xp']} / {li['next_level_xp']} XP"
-    draw.text((bar_x, bar_y + bar_h + 3 * SCALE), xp_text, fill=GRAY, font=f_xp)
+    draw.text((bar_x, xp_bottom), xp_text, fill=GRAY, font=f_xp)
 
-    draw.text((name_x, content_top + 50 * SCALE), f"ID: {user_id}", fill=GRAY, font=f_id)
+    id_y = xp_bottom + 16 * SCALE
+    draw.text((name_x, id_y), f"ID: {user_id}", fill=GRAY, font=f_id)
 
-    _decorative_dots(draw, W // 2, content_top + 75 * SCALE, 7, 10, (50, 35, 100))
+    dots_y = id_y + 22 * SCALE
+    _decorative_dots(draw, W // 2, dots_y, 7, 10, (50, 35, 100))
 
-    sy = content_top + 80 * SCALE
+    sy = dots_y + 12 * SCALE
     sec_h = 110 * SCALE
     draw.rounded_rectangle(
         (36 * SCALE, sy, W - 36 * SCALE, sy + sec_h),
@@ -380,7 +374,7 @@ def generate_profile_card(
     draw.text((mid + 20 * SCALE, sy + 14 * SCALE), "РУБИНЫ", fill=GRAY, font=_font(10, bold=False))
     _draw_gem(draw, mid + 30 * SCALE, sy + 52 * SCALE, 9 * SCALE, PINK, shine=(255, 180, 220))
     f_rub = _font(28)
-    draw.text((mid + 48 * SCALE, sy + 36 * SCALE), f"{rubies}", fill=PINK, font=f_rub)
+    draw.text((mid + 48 * SCALE, sy + 36 * SCALE), f"{format_number(rubies)}", fill=PINK, font=f_rub)
     draw.text((mid + 48 * SCALE, sy + 74 * SCALE), "GEMS", fill=PINK2, font=_font(11, bold=False))
 
     sy2 = sy + sec_h + 16 * SCALE
@@ -424,7 +418,7 @@ def generate_profile_card(
         fw = max(bar_h, int(bar_w * min(winrate, 100) / 100))
         _gradient_h(img, (bar_x, bar_y, bar_x + fw, bar_y + bar_h), PURPLE, PINK2)
         draw = ImageDraw.Draw(img)
-        draw.rounded_rectangle([bar_x, bar_y, bar_x + fw, bar_y + bar_h], radius=6 * SCALE, fill=PURPLE)
+        draw.rounded_rectangle([bar_x, bar_y, bar_x + fw, bar_y + bar_h], radius=6 * SCALE, outline=PURPLE, width=1)
 
     fin_y = bar_y + bar_h + 24 * SCALE
     draw.line([(56 * SCALE, fin_y - 8 * SCALE), (W - 56 * SCALE, fin_y - 8 * SCALE)],
@@ -457,7 +451,6 @@ def generate_profile_card(
         (W - 50 * SCALE, 50 * SCALE, 2, (80, 60, 180)),
         (55 * SCALE, H - 80 * SCALE, 2, (90, 60, 190)),
         (W - 55 * SCALE, H - 75 * SCALE, 2, (70, 50, 170)),
-        (W // 2, 200 * SCALE, 2, (110, 80, 210)),
     ]
     for sx, sy_s, sr, sc in sparkles:
         _dot(draw, sx, sy_s, sr, sc)

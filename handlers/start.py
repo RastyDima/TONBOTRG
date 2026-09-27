@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from config import ADMIN_IDS, STARTING_BALANCE
-from database import db, _calc_level, level_info, level_name
+from database import db, level_info, level_name
 from keyboards.main_menu import main_menu
 from utils.game_registry import cancel_game, clear_pending_bet, registry
 from utils.helpers import format_number, menu_text

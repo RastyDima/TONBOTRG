@@ -79,6 +79,26 @@ def _check_level_up(user_id: int, old_level: int, new_level: int) -> dict | None
     return info
 
 
+def award_xp(user_id: int, amount: int) -> dict | None:
+    """Начисляет XP (2 запроса: чтение + UPDATE...RETURNING).
+    Возвращает level-up info dict или None."""
+    old_level = _calc_level(db.get_xp(user_id))
+    new_xp, new_level = db.add_xp(user_id, amount)
+    if new_level <= old_level:
+        return None
+    info = level_info(new_xp)
+    info["old_level"] = old_level
+    info["new_level"] = new_level
+    info["level_name"] = level_name(new_level)
+    return info
+
+
+def level_up_text(level_up: dict | None) -> str:
+    if not level_up:
+        return ""
+    return f"\n\n🎉 <b>Уровень {level_up['new_level']} — {level_up['level_name']}!</b>"
+
+
 def cashout_game(user_id: int):
     """Забирает выигрыш: начисляет payout, фиксирует победу в БД и статистике."""
     entry = registry.get(user_id)
@@ -98,10 +118,7 @@ def cashout_game(user_id: int):
     registry.release(user_id)
     db.add_game(user_id, entry["type"], game.bet, payout, "win")
     db.update_stats(user_id, "win", game.bet, payout)
-    old_level = _calc_level(db.get_xp(user_id))
-    db.add_xp(user_id, GAME_XP_PLAY + GAME_XP_WIN)
-    new_level = _calc_level(db.get_xp(user_id))
-    level_up = _check_level_up(user_id, old_level, new_level)
+    level_up = award_xp(user_id, GAME_XP_PLAY + GAME_XP_WIN)
     return game, payout, level_up
 
 
@@ -118,10 +135,7 @@ def lose_game(user_id: int):
     registry.release(user_id)
     db.add_game(user_id, entry["type"], game.bet, 0, "lose")
     db.update_stats(user_id, "lose", game.bet, 0)
-    old_level = _calc_level(db.get_xp(user_id))
-    db.add_xp(user_id, GAME_XP_PLAY)
-    new_level = _calc_level(db.get_xp(user_id))
-    level_up = _check_level_up(user_id, old_level, new_level)
+    level_up = award_xp(user_id, GAME_XP_PLAY)
     return game, level_up
 
 

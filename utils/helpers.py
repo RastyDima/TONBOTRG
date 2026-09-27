@@ -1,7 +1,7 @@
 import html
 
 from config import DAILY_BONUS, MAX_BET, MIN_BET, WEEKLY_BONUS
-from database import db
+from database import db, level_info, level_name
 
 
 def get_daily_bonus() -> int:
@@ -18,7 +18,12 @@ def get_weekly_bonus() -> int:
         return WEEKLY_BONUS
 
 
-def format_number(n: int) -> str:
+def format_number(n) -> str:
+    if isinstance(n, float):
+        if n.is_integer():
+            return f"{int(n):,}".replace(",", " ")
+        s = f"{n:,.2f}".replace(",", " ")
+        return s.rstrip("0").rstrip(".")
     return f"{int(n):,}".replace(",", " ")
 
 
@@ -97,7 +102,7 @@ def balance_text(user: dict) -> str:
     return (
         f"💰 <b>Баланс</b>\n\n"
         f"💳 TON: <b>{format_number(user['balance'])}</b>\n"
-        f"💎 Рубины: <b>{rubies}</b>\n\n"
+        f"💎 Рубины: <b>{format_number(rubies)}</b>\n\n"
         f"💸 Перевести: ответьте на сообщение игрока — <code>п 12000</code>\n"
         f"📲 Быстрый запрос: просто напишите <code>б</code> в чате"
     )
@@ -109,12 +114,15 @@ def profile_text(user: dict, stats: dict) -> str:
     rubies = user.get('rubies', 0) or 0
     ref_count = user.get('referral_count', 0) or 0
     ref_earned = user.get('referral_earned', 0) or 0
+    li = level_info(user.get("xp", 0) or 0)
     text = (
         f"👤 <b>Профиль</b>\n"
         f"🆔 ID: <code>{user['id']}</code>\n"
         f"👤 Имя: {html.escape(str(user['first_name'] or 'Игрок'))}\n"
+        f"📊 Уровень: <b>{li['level']}</b> — {level_name(li['level'])} "
+        f"({format_number(li['xp'])} / {format_number(li['next_level_xp'])} XP)\n"
         f"💳 Баланс: <b>{format_number(user['balance'])}</b> TON\n"
-        f"💎 Рубины: <b>{rubies}</b>\n\n"
+        f"💎 Рубины: <b>{format_number(rubies)}</b>\n\n"
         f"📊 <b>Общая статистика</b>\n"
         f"🎮 Игр сыграно: {total}\n"
         f"✅ Побед: {stats['wins']}\n"

@@ -5,10 +5,10 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from database import db, level_info, level_name, _calc_level
+from database import db
 from games.coinflip import CoinFlipGame
 from keyboards.common import back_button, cancel_kb
-from utils.game_registry import registry
+from utils.game_registry import GAME_XP_PLAY, GAME_XP_WIN, award_xp, level_up_text, registry
 from utils.helpers import format_number, parse_bet, quick_command
 
 router = Router()
@@ -158,14 +158,7 @@ async def coinflip_pick(callback: CallbackQuery, state: FSMContext):
     registry.release(user_id)
     db.add_game(user_id, "coinflip", game.bet, game.payout, "win" if game.won else "lose")
     db.update_stats(user_id, "win" if game.won else "lose", game.bet, game.payout)
-    from utils.game_registry import GAME_XP_PLAY, GAME_XP_WIN
-    old_level = _calc_level(db.get_xp(user_id))
-    db.add_xp(user_id, GAME_XP_PLAY + (GAME_XP_WIN if game.won else 0))
-    new_level = _calc_level(db.get_xp(user_id))
-    level_msg = ""
-    if new_level > old_level:
-        li = level_info(db.get_xp(user_id))
-        level_msg = f"\n\n🎉 <b>Уровень {li['level']} — {level_name(li['level'])}!</b>"
+    level_msg = level_up_text(award_xp(user_id, GAME_XP_PLAY + (GAME_XP_WIN if game.won else 0)))
 
     await callback.answer("🎉" if game.won else "💀")
     await callback.message.edit_text(result_text(game, balance) + level_msg, reply_markup=None)

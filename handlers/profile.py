@@ -40,7 +40,10 @@ def balance_kb():
 
 def _fetch_avatar_sync(user_id: int) -> tuple[bytes | None, bool]:
     """Возвращает (avatar_bytes, is_animated).
-    Для видео-аватаров скачивает сам видеофайл, а не статичный thumbnail.
+
+    Видео-аватары Telegram (mp4) Pillow открыть не может, поэтому для них
+    качаем статичный thumbnail — иначе вместо фото были бы инициалы.
+    GIF-байты (если придут) обрабатываются как анимация в profile_card.
     """
     try:
         base = f"https://api.telegram.org/bot{BOT_TOKEN}"
@@ -58,8 +61,13 @@ def _fetch_avatar_sync(user_id: int) -> tuple[bytes | None, bool]:
         is_animated = False
         if "video" in last:
             video = last["video"]
-            file_id = video["file_id"]
-            is_animated = True
+            thumb = video.get("thumb") if isinstance(video, dict) else None
+            if thumb and thumb.get("file_id"):
+                file_id = thumb["file_id"]
+            elif "photo" in last:
+                file_id = last["photo"]["file_id"]
+            else:
+                return None, False
         elif "photo" in last:
             file_id = last["photo"]["file_id"]
         else:

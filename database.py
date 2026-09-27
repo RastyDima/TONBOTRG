@@ -669,15 +669,23 @@ class Database:
 
     # ---------- XP / Уровни ----------
 
-    def add_xp(self, user_id: int, amount: int) -> int:
-        """Добавляет XP, возвращает новый уровень."""
+    def add_xp(self, user_id: int, amount: int) -> tuple[int, int]:
+        """Добавляет XP одним запросом. Возвращает (new_xp, new_level)."""
         with closing(self._connect()) as conn, conn:
-            conn.execute(
-                "UPDATE users SET xp = xp + ? WHERE id = ?",
-                (amount, user_id),
-            )
-            row = conn.execute("SELECT xp FROM users WHERE id = ?", (user_id,)).fetchone()
-            return _calc_level(row["xp"]) if row else 1
+            try:
+                row = conn.execute(
+                    "UPDATE users SET xp = xp + ? WHERE id = ? RETURNING xp",
+                    (amount, user_id),
+                ).fetchone()
+                new_xp = row["xp"] if row else 0
+            except sqlite3.OperationalError:
+                conn.execute(
+                    "UPDATE users SET xp = xp + ? WHERE id = ?",
+                    (amount, user_id),
+                )
+                row = conn.execute("SELECT xp FROM users WHERE id = ?", (user_id,)).fetchone()
+                new_xp = row["xp"] if row else 0
+            return new_xp, _calc_level(new_xp)
 
     def get_xp(self, user_id: int) -> int:
         with closing(self._connect()) as conn:
@@ -1310,16 +1318,16 @@ class PostgresDatabase:
 
     # ---------- XP / Уровни ----------
 
-    def add_xp(self, user_id: int, amount: int) -> int:
-        """Добавляет XP, возвращает новый уровень."""
+    def add_xp(self, user_id: int, amount: int) -> tuple[int, int]:
+        """Добавляет XP одним запросом. Возвращает (new_xp, new_level)."""
         with self._cursor() as cur:
             cur.execute(
-                "UPDATE users SET xp = xp + %s WHERE id = %s",
+                "UPDATE users SET xp = xp + %s WHERE id = %s RETURNING xp",
                 (amount, user_id),
             )
-            cur.execute("SELECT xp FROM users WHERE id = %s", (user_id,))
             row = cur.fetchone()
-            return _calc_level(row["xp"]) if row else 1
+            new_xp = row["xp"] if row else 0
+            return new_xp, _calc_level(new_xp)
 
     def get_xp(self, user_id: int) -> int:
         with self._cursor() as cur:

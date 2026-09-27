@@ -4,7 +4,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from database import db, level_info, level_name, _calc_level
+from database import db
+from utils.game_registry import award_xp, level_up_text
 from keyboards.common import back_button
 from utils.helpers import (
     balance_text,
@@ -41,8 +42,9 @@ def back_kb():
 async def daily_command(message: Message):
     ok = db.claim_daily(message.from_user.id, get_daily_bonus())
     if ok:
+        level_msg = level_up_text(award_xp(message.from_user.id, XP_DAILY))
         await message.answer(
-            f"🎁 <b>Ежедневный бонус</b>\n\nВы получили {format_number(get_daily_bonus())} TON!",
+            f"🎁 <b>Ежедневный бонус</b>\n\nВы получили {format_number(get_daily_bonus())} TON!{level_msg}",
             reply_markup=back_kb(),
         )
     else:
@@ -61,13 +63,7 @@ async def daily_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     ok = db.claim_daily(callback.from_user.id, get_daily_bonus())
     if ok:
-        old_level = _calc_level(db.get_xp(callback.from_user.id))
-        db.add_xp(callback.from_user.id, XP_DAILY)
-        new_level = _calc_level(db.get_xp(callback.from_user.id))
-        level_msg = ""
-        if new_level > old_level:
-            li = level_info(db.get_xp(callback.from_user.id))
-            level_msg = f"\n\n🎉 <b>Уровень {li['level']} — {level_name(li['level'])}!</b>"
+        level_msg = level_up_text(award_xp(callback.from_user.id, XP_DAILY))
         await callback.message.edit_text(
             f"🎁 <b>Ежедневный бонус</b>\n\n"
             f"Вы получили {format_number(get_daily_bonus())} TON!"
@@ -84,8 +80,9 @@ async def daily_callback(callback: CallbackQuery, state: FSMContext):
 async def weekly_command(message: Message):
     ok = db.claim_weekly(message.from_user.id, get_weekly_bonus())
     if ok:
+        level_msg = level_up_text(award_xp(message.from_user.id, XP_WEEKLY))
         await message.answer(
-            f"🗓 <b>Еженедельный бонус</b>\n\nВы получили {format_number(get_weekly_bonus())} TON!",
+            f"🗓 <b>Еженедельный бонус</b>\n\nВы получили {format_number(get_weekly_bonus())} TON!{level_msg}",
             reply_markup=back_kb(),
         )
     else:
@@ -101,13 +98,7 @@ async def weekly_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     ok = db.claim_weekly(callback.from_user.id, get_weekly_bonus())
     if ok:
-        old_level = _calc_level(db.get_xp(callback.from_user.id))
-        db.add_xp(callback.from_user.id, XP_WEEKLY)
-        new_level = _calc_level(db.get_xp(callback.from_user.id))
-        level_msg = ""
-        if new_level > old_level:
-            li = level_info(db.get_xp(callback.from_user.id))
-            level_msg = f"\n\n🎉 <b>Уровень {li['level']} — {level_name(li['level'])}!</b>"
+        level_msg = level_up_text(award_xp(callback.from_user.id, XP_WEEKLY))
         await callback.message.edit_text(
             f"🗓 <b>Еженедельный бонус</b>\n\n"
             f"Вы получили {format_number(get_weekly_bonus())} TON!"
