@@ -215,4 +215,8 @@ async def achievements_callback(callback: CallbackQuery, state: FSMContext):
     if not user:
         await callback.message.edit_text("Используйте /start")
         return
-    await callback.message.edit_text(achievements_text(callback.from_user.id), reply_markup=_ach_kb())
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer(achievements_text(callback.from_user.id), reply_markup=_ach_kb())
