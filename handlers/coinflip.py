@@ -8,7 +8,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database import db
 from games.coinflip import CoinFlipGame
 from keyboards.common import back_button, cancel_kb
-from utils.game_registry import GAME_XP_PLAY, GAME_XP_WIN, award_xp, level_up_text, registry
+from utils.game_registry import GAME_XP_PLAY, GAME_XP_WIN, award_progress, progress_text, registry
 from utils.helpers import format_number, parse_bet, quick_command
 
 router = Router()
@@ -158,7 +158,7 @@ async def coinflip_pick(callback: CallbackQuery, state: FSMContext):
     registry.release(user_id)
     db.add_game(user_id, "coinflip", game.bet, game.payout, "win" if game.won else "lose")
     db.update_stats(user_id, "win" if game.won else "lose", game.bet, game.payout)
-    level_msg = level_up_text(award_xp(user_id, GAME_XP_PLAY + (GAME_XP_WIN if game.won else 0)))
+    level_msg = progress_text(award_progress(user_id, GAME_XP_PLAY + (GAME_XP_WIN if game.won else 0)))
 
     await callback.answer("🎉" if game.won else "💀")
     await callback.message.edit_text(result_text(game, balance) + level_msg, reply_markup=None)

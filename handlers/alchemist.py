@@ -16,6 +16,7 @@ from utils.game_registry import (
     clear_pending_bet,
     get_pending_bet,
     lose_game,
+    progress_text,
     registry,
     set_pending_bet,
 )
@@ -267,15 +268,13 @@ async def finish_mix(callback: CallbackQuery, game) -> None:
     if game.multiplier <= 0:
         result = lose_game(game.user_id)
         final_text = lose_text(game)
-        if result and result[1]:
-            lu = result[1]
-            level_msg = f"\n\n🎉 <b>Уровень {lu['new_level']} — {lu['level_name']}!</b>"
+        if result:
+            level_msg = progress_text(result[1])
     else:
         result = cashout_game(game.user_id)
         final_text = win_text(game)
-        if result and result[2]:
-            lu = result[2]
-            level_msg = f"\n\n🎉 <b>Уровень {lu['new_level']} — {lu['level_name']}!</b>"
+        if result:
+            level_msg = progress_text(result[2])
 
     try:
         await callback.message.edit_text(final_text + level_msg)

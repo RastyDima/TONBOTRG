@@ -158,6 +158,8 @@ def generate_profile_card(
     avatar_bytes: bytes | None = None,
     title: str | None = None,
     xp: int = 0,
+    ach_count: int = 0,
+    ach_total: int = 0,
 ) -> io.BytesIO:
     BG_TOP = (12, 8, 24)
     BG_BOT = (18, 12, 35)
@@ -378,7 +380,7 @@ def generate_profile_card(
     draw.text((mid + 48 * SCALE, sy + 74 * SCALE), "GEMS", fill=PINK2, font=_font(11, bold=False))
 
     sy2 = sy + sec_h + 16 * SCALE
-    stat_h = 260 * SCALE
+    stat_h = 306 * SCALE
     draw.rounded_rectangle(
         (36 * SCALE, sy2, W - 36 * SCALE, sy2 + stat_h),
         radius=16 * SCALE, fill=SECTION_BG, outline=BORDER_DIM, width=1 * SCALE,
@@ -434,6 +436,11 @@ def generate_profile_card(
         fin_y3 = fin_y2 + 28 * SCALE
         draw.text((56 * SCALE, fin_y3), "Рефералы", fill=GRAY, font=f_stat_label)
         draw.text((bar_x + bar_w - 80 * SCALE, fin_y3), f"{ref_count}", fill=CYAN, font=f_stat_val)
+        ach_y = fin_y3 + 28 * SCALE
+    else:
+        ach_y = fin_y2 + 28 * SCALE
+    draw.text((56 * SCALE, ach_y), "Достижения", fill=GRAY, font=f_stat_label)
+    draw.text((bar_x + bar_w - 80 * SCALE, ach_y), f"{ach_count}/{ach_total}", fill=PURPLE2, font=f_stat_val)
 
     line_y2 = H - 68 * SCALE
     draw.line([(60 * SCALE, line_y2), (W - 60 * SCALE, line_y2)], fill=NEON_LINE, width=1)

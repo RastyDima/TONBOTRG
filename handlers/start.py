@@ -32,6 +32,10 @@ async def cmd_start(message: Message):
         db.add_xp(user.id, 10)
         if referrer_id and referrer_id != user.id:
             db.add_xp(referrer_id, 100)
+        from utils.achievements import check_achievements
+        check_achievements(user.id)
+        if referrer_id and referrer_id != user.id:
+            check_achievements(referrer_id)
     name = html.escape(user.first_name or "игрок")
     if existing:
         text = f"👋 С возвращением, {name}!\nВыберите действие в меню:"
@@ -68,6 +72,7 @@ async def cmd_help(message: Message):
         "💰 <b>Баланс:</b> <code>б</code>\n"
         "👤 /profile — профиль и статистика\n"
         "📊 /level — ваш уровень и прогресс\n"
+        "🏅 /achievements — достижения\n"
         "🎁 /daily — ежедневный бонус\n"
         "🗓 /weekly — еженедельный бонус\n"
         "🎟 Промокод: введите <code>#КОД</code> в чате\n"

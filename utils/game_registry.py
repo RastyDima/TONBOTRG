@@ -1,4 +1,5 @@
 from database import db, level_info, level_name, _calc_level
+from utils.achievements import check_achievements
 
 GAME_LABELS = {"mines": "Мины", "joker": "Джокер", "alchemist": "Алхимик", "ruby_roulette": "Рубиновая рулетка", "coinflip": "Монетка"}
 
@@ -99,6 +100,22 @@ def level_up_text(level_up: dict | None) -> str:
     return f"\n\n🎉 <b>Уровень {level_up['new_level']} — {level_up['level_name']}!</b>"
 
 
+def award_progress(user_id: int, amount: int) -> dict:
+    """Начисляет XP + проверяет ачивки. Возвращает {'level_up', 'achievements'}."""
+    return {
+        "level_up": award_xp(user_id, amount),
+        "achievements": check_achievements(user_id),
+    }
+
+
+def progress_text(progress: dict) -> str:
+    """Готовый текст для сообщения из award_progress()."""
+    text = level_up_text(progress.get("level_up"))
+    for a in progress.get("achievements", []):
+        text += f"\n🏅 <b>Достижение: {a['icon']} {a['name']}</b> — {a['desc']}"
+    return text
+
+
 def cashout_game(user_id: int):
     """Забирает выигрыш: начисляет payout, фиксирует победу в БД и статистике."""
     entry = registry.get(user_id)
@@ -118,8 +135,8 @@ def cashout_game(user_id: int):
     registry.release(user_id)
     db.add_game(user_id, entry["type"], game.bet, payout, "win")
     db.update_stats(user_id, "win", game.bet, payout)
-    level_up = award_xp(user_id, GAME_XP_PLAY + GAME_XP_WIN)
-    return game, payout, level_up
+    progress = award_progress(user_id, GAME_XP_PLAY + GAME_XP_WIN)
+    return game, payout, progress
 
 
 def lose_game(user_id: int):
@@ -135,8 +152,8 @@ def lose_game(user_id: int):
     registry.release(user_id)
     db.add_game(user_id, entry["type"], game.bet, 0, "lose")
     db.update_stats(user_id, "lose", game.bet, 0)
-    level_up = award_xp(user_id, GAME_XP_PLAY)
-    return game, level_up
+    progress = award_progress(user_id, GAME_XP_PLAY)
+    return game, progress
 
 
 def cancel_game(user_id: int):

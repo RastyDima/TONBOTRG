@@ -178,6 +178,14 @@ class Database:
                     UNIQUE(user_id, item_id)
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_achievements (
+                    user_id INTEGER NOT NULL,
+                    achievement_id TEXT NOT NULL,
+                    earned_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                    PRIMARY KEY (user_id, achievement_id)
+                )
+            """)
             conn.commit()
 
     # ---------- Пользователи ----------
@@ -623,6 +631,7 @@ class Database:
             conn.execute("DELETE FROM transactions")
             conn.execute("DELETE FROM games")
             conn.execute("DELETE FROM promo_claims")
+            conn.execute("DELETE FROM user_achievements")
             conn.execute("UPDATE promos SET used_count = 0")
 
     # ---------- Магазин ----------
@@ -666,6 +675,25 @@ class Database:
                 (user_id,),
             ).fetchall()
             return [dict(r) for r in rows]
+
+    # ---------- Достижения ----------
+
+    def get_achievements(self, user_id: int) -> list[str]:
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT achievement_id FROM user_achievements WHERE user_id = ?",
+                (user_id,),
+            ).fetchall()
+            return [r["achievement_id"] for r in rows]
+
+    def grant_achievement(self, user_id: int, achievement_id: str) -> bool:
+        """Выдаёт ачивку. True если новая, False если уже была."""
+        with closing(self._connect()) as conn, conn:
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO user_achievements (user_id, achievement_id) VALUES (?, ?)",
+                (user_id, achievement_id),
+            )
+            return cur.rowcount > 0
 
     # ---------- XP / Уровни ----------
 
@@ -831,6 +859,14 @@ class PostgresDatabase:
                     category TEXT NOT NULL,
                     created_at TEXT NOT NULL DEFAULT (to_char(LOCALTIMESTAMP, 'YYYY-MM-DD HH24:MI:SS')),
                     UNIQUE(user_id, item_id)
+                )
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS user_achievements (
+                    user_id BIGINT NOT NULL,
+                    achievement_id TEXT NOT NULL,
+                    earned_at TEXT NOT NULL DEFAULT (to_char(LOCALTIMESTAMP, 'YYYY-MM-DD HH24:MI:SS')),
+                    PRIMARY KEY (user_id, achievement_id)
                 )
             """)
 
@@ -1270,6 +1306,7 @@ class PostgresDatabase:
             cur.execute("DELETE FROM transactions")
             cur.execute("DELETE FROM games")
             cur.execute("DELETE FROM promo_claims")
+            cur.execute("DELETE FROM user_achievements")
             cur.execute("UPDATE promos SET used_count = 0")
 
     # ---------- Магазин ----------
@@ -1315,6 +1352,26 @@ class PostgresDatabase:
                 (user_id,),
             )
             return [dict(r) for r in cur.fetchall()]
+
+    # ---------- Достижения ----------
+
+    def get_achievements(self, user_id: int) -> list[str]:
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT achievement_id FROM user_achievements WHERE user_id = %s",
+                (user_id,),
+            )
+            return [r["achievement_id"] for r in cur.fetchall()]
+
+    def grant_achievement(self, user_id: int, achievement_id: str) -> bool:
+        """Выдаёт ачивку. True если новая, False если уже была."""
+        with self._cursor() as cur:
+            cur.execute(
+                "INSERT INTO user_achievements (user_id, achievement_id) VALUES (%s, %s) "
+                "ON CONFLICT (user_id, achievement_id) DO NOTHING",
+                (user_id, achievement_id),
+            )
+            return cur.rowcount > 0
 
     # ---------- XP / Уровни ----------
 

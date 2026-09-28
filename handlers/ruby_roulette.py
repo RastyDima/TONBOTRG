@@ -131,8 +131,8 @@ async def ruby_roulette_pick(callback: CallbackQuery, state: FSMContext):
     registry.release(user_id)
     db.add_game(user_id, "ruby_roulette", game.bet, game.payout, "win" if game.won else "lose")
     db.update_stats(user_id, "win" if game.won else "lose", game.bet, game.payout)
-    from utils.game_registry import GAME_XP_PLAY, GAME_XP_WIN, award_xp, level_up_text
-    level_msg = level_up_text(award_xp(user_id, GAME_XP_PLAY + (GAME_XP_WIN if game.won else 0)))
+    from utils.game_registry import GAME_XP_PLAY, GAME_XP_WIN, award_progress, progress_text
+    level_msg = progress_text(award_progress(user_id, GAME_XP_PLAY + (GAME_XP_WIN if game.won else 0)))
 
     await callback.answer("💎" if game.won else "💀")
     await callback.message.edit_text(result_text(game, rubies) + level_msg, reply_markup=None)

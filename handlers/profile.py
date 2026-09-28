@@ -26,6 +26,7 @@ _SSL_CTX.verify_mode = ssl.CERT_NONE
 
 def profile_kb():
     kb = InlineKeyboardBuilder()
+    kb.button(text="🏅 Достижения", callback_data="achievements")
     kb.row(back_button("menu"))
     return kb.as_markup()
 
@@ -101,6 +102,8 @@ async def _get_avatar(user_id: int) -> tuple[bytes | None, bool]:
 
 async def _make_card(user, stats, ref_count, from_user):
     avatar_bytes, is_animated = await _get_avatar(user["id"])
+    ach_count = len(db.get_achievements(user["id"]))
+    from utils.achievements import TOTAL as ACH_TOTAL
     card_buf = generate_profile_card(
         user_id=user["id"],
         name=user["first_name"] or "Игрок",
@@ -116,6 +119,8 @@ async def _make_card(user, stats, ref_count, from_user):
         frame=user.get("active_frame"),
         title=user.get("active_title"),
         xp=user.get("xp", 0) or 0,
+        ach_count=ach_count,
+        ach_total=ACH_TOTAL,
     )
     is_gif = card_buf.getvalue()[:6] in (b"GIF87a", b"GIF89a")
     ext = "gif" if is_gif else "png"
@@ -183,3 +188,31 @@ async def balance_callback(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text("Используйте /start")
         return
     await callback.message.edit_text(balance_text(user), reply_markup=balance_kb())
+
+
+def _ach_kb():
+    kb = InlineKeyboardBuilder()
+    kb.row(back_button("profile"))
+    return kb.as_markup()
+
+
+@router.message(Command("achievements"))
+async def achievements_command(message: Message):
+    from utils.achievements import achievements_text
+    check_user = db.get_user(message.from_user.id)
+    if not check_user:
+        await message.answer("Сначала нажмите /start")
+        return
+    await message.answer(achievements_text(message.from_user.id), reply_markup=_ach_kb())
+
+
+@router.callback_query(F.data == "achievements", StateFilter("*"))
+async def achievements_callback(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.answer()
+    from utils.achievements import achievements_text
+    user = db.get_user(callback.from_user.id)
+    if not user:
+        await callback.message.edit_text("Используйте /start")
+        return
+    await callback.message.edit_text(achievements_text(callback.from_user.id), reply_markup=_ach_kb())

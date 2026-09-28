@@ -115,12 +115,15 @@ def profile_text(user: dict, stats: dict) -> str:
     ref_count = user.get('referral_count', 0) or 0
     ref_earned = user.get('referral_earned', 0) or 0
     li = level_info(user.get("xp", 0) or 0)
+    from utils.achievements import TOTAL as ACH_TOTAL
+    ach_count = len(db.get_achievements(user["id"]))
     text = (
         f"👤 <b>Профиль</b>\n"
         f"🆔 ID: <code>{user['id']}</code>\n"
         f"👤 Имя: {html.escape(str(user['first_name'] or 'Игрок'))}\n"
         f"📊 Уровень: <b>{li['level']}</b> — {level_name(li['level'])} "
         f"({format_number(li['xp'])} / {format_number(li['next_level_xp'])} XP)\n"
+        f"🏅 Достижения: <b>{ach_count}</b>/{ACH_TOTAL} — /achievements\n"
         f"💳 Баланс: <b>{format_number(user['balance'])}</b> TON\n"
         f"💎 Рубины: <b>{format_number(rubies)}</b>\n\n"
         f"📊 <b>Общая статистика</b>\n"

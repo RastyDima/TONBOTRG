@@ -14,6 +14,7 @@ from utils.game_registry import (
     clear_pending_bet,
     get_pending_bet,
     lose_game,
+    progress_text,
     registry,
     set_pending_bet,
 )
@@ -230,10 +231,7 @@ async def joker_pick(callback: CallbackQuery):
     if game.pick(pos) == "skull":
         result = lose_game(user_id)
         await callback.answer("💀 Скелет!")
-        level_msg = ""
-        if result and result[1]:
-            lu = result[1]
-            level_msg = f"\n\n🎉 <b>Уровень {lu['new_level']} — {lu['level_name']}!</b>"
+        level_msg = progress_text(result[1]) if result else ""
         await callback.message.edit_text(lose_text(game) + level_msg, reply_markup=None)
         return
     await callback.answer(f"Множитель: {game.multiplier}x")
@@ -246,10 +244,8 @@ async def joker_cashout(callback: CallbackQuery):
     if not result:
         await callback.answer("Игра не найдена. Начните новую.", show_alert=True)
         return
-    game, payout, level_up = result
-    level_msg = ""
-    if level_up:
-        level_msg = f"\n\n🎉 <b>Уровень {level_up['new_level']} — {level_up['level_name']}!</b>"
+    game, payout, progress = result
+    level_msg = progress_text(progress)
     await callback.answer()
     await callback.message.edit_reply_markup(reply_markup=None)
     await callback.message.answer(
